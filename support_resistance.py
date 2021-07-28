@@ -5,9 +5,17 @@ from mplfinance.original_flavor import candlestick_ohlc
 import matplotlib.dates as mpl_dates
 import matplotlib.pyplot as plt
 from pytz import timezone
+import threading
+import time
+import schedule
 
-class SupportResistance:
-    def __init__(self, name, interval, period, interval_chart, period_chart):
+class SupportResistance(threading.Thread):
+    def __init__(self, name, interval, period, interval_chart, period_chart, queue):
+        threading.Thread.__init__(self)
+
+        self._q = queue
+        self._stop_event = threading.Event()
+
         self._levels = []
 
         self.__name = name
@@ -38,6 +46,9 @@ class SupportResistance:
     def levels(self):
         return self._levels
 
+    def stop(self):
+        self._stop_event.set()
+
     def _is_support(self, i):
         support = self._df['Low'][i] < self._df['Low'][i - 1] < self._df['Low'][i - 2] and \
                   self._df['Low'][i] < self._df['Low'][i + 1] < self._df['Low'][i + 2]
@@ -51,7 +62,7 @@ class SupportResistance:
     def _is_far_from_level(self, l):
         return np.sum([abs(l - x) < self.__volatility for x in self._levels]) == 0
 
-    def find_levels(self, df):
+    def _find_levels(self, df):
         for i in range(2, df.shape[0] - 2):
             if self._is_support(i):
                 l = df['Low'][i]
@@ -66,6 +77,49 @@ class SupportResistance:
         ticker = yfinance.Ticker(self.__name)
         data = ticker.history(period='1d')
         return data['Close'][0]
+
+    def check_if_worth_buying(self):
+        print("[+] ", self.ticker, " Checking if worth buying")
+        current_price = self.get_current_price()
+
+        # Find two nearest levels = support and resistance
+        resistance = (10000000, 10000000)
+        support = (0, 0)
+        for level in self.levels:
+            if current_price - level[1] < 0 and resistance[1] > level[1]:
+                resistance = level
+            elif current_price - level[1] >= 0 and support[1] < level[1]:
+                support = level
+
+        print(self.ticker, " Nearest resistance: ", resistance[1])
+        print(self.ticker, " Nearest support: ", support[1])
+        profit = (resistance[1]-current_price)/current_price
+        is_near_support = current_price < support[1] * 1.03
+        print(self.ticker, " Estimated profit: ", round(profit, 2)*100, "%")
+        print(self.ticker, " Is near support: ", is_near_support)
+
+        if support[0] == 0 and support[1] == 0:
+            self._q.put("skip")
+            return "skip"
+        elif resistance[0] == 0 and resistance[1] == 0:
+            if is_near_support:
+                print(self.ticker, "[+] Worth buying")
+                print(self.ticker, "[*] Resistance not found be careful.")
+
+                self._q.put("buy, no resistance")
+                return "buy, no resistance"
+            else:
+                self._q.put("watch")
+                return "watch"
+
+        if is_near_support and profit >= 0.2:
+            print(self.ticker, "[+] Worth buying")
+            self._q.put("buy")
+            return "buy"
+        else:
+            print(self.ticker, "[-] Not worth buying. Keeping an eye on this one.")
+            self._q.put("watch")
+            return "watch"
 
     def show_chart(self, dformat="%d/%b/%Y %H:%M", candle_width=0.6/(24 * 15), show_levels=True):
         fig, ax = plt.subplots()
@@ -100,9 +154,20 @@ class SupportResistance:
 
         fig.show()
 
-    def run(self):
-        self.find_levels(self._df)
-        self.find_levels(self._df_for_chart)
-        self.show_chart()
+    def __watch_ticker(self):
+        schedule.every(1).minutes.do(self.check_if_worth_buying)
 
-        input("Press enter to exit")
+        while True:
+            if self._stop_event.is_set():
+                break
+
+            schedule.run_pending()
+            time.sleep(1)
+
+    def run(self):
+        self._find_levels(self._df)
+        self._find_levels(self._df_for_chart)
+        worth_buying = self.check_if_worth_buying()
+
+        if worth_buying == "watch":
+            self.__watch_ticker()
