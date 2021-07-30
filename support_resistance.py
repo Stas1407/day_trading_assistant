@@ -10,7 +10,7 @@ import time
 import schedule
 import webbrowser
 
-class SupportResistance(Process):
+class Stock(Process):
     def __init__(self, ticker, interval, period, interval_chart, period_chart, queue):
         Process.__init__(self)
 
@@ -167,7 +167,7 @@ class SupportResistance(Process):
 
         plt.show()
 
-    def __watch_ticker(self):
+    def __watch(self):
         schedule.every(1).minutes.do(self.check_if_worth_buying)
 
         chart_process = Process(target=self._show_chart)
@@ -197,4 +197,4 @@ class SupportResistance(Process):
         self._find_levels(self._df)
         self._find_levels(self._df_for_chart)
         self.check_if_worth_buying()
-        self.__watch_ticker()
+        self.__watch()
