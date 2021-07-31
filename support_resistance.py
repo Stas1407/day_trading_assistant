@@ -11,12 +11,14 @@ import schedule
 import webbrowser
 
 class Stock(Process):
-    def __init__(self, ticker, interval, period, interval_chart, period_chart, queue):
+    def __init__(self, ticker, interval, period, interval_chart, period_chart, queue, logger_queue):
         Process.__init__(self)
 
         self._q = queue
         self._stop_event = Event()
         self._show_chart_event = Event()
+        
+        self.logger_queue = logger_queue
 
         self.url = "https://www.tradingview.com/chart/?symbol="+ticker
 
@@ -87,7 +89,8 @@ class Stock(Process):
         return data['Close'][0]
 
     def check_if_worth_buying(self):
-        print("[+] ", self.ticker, " Checking if worth buying")
+        self.logger_queue.put(["INFO", f"  Stock {self.ticker}: Checking if worth buying"])
+
         current_price = self.get_current_price()
 
         # Find two nearest levels = support and resistance
@@ -99,38 +102,36 @@ class Stock(Process):
             elif current_price - level[1] >= 0 and support[1] < level[1]:
                 support = level
 
-        print(self.ticker, " Price: ", current_price)
-        print(self.ticker, " Nearest resistance: ", resistance[1])
-        print(self.ticker, " Nearest support: ", support[1])
+        self.logger_queue.put(["DEBUG", f"  Stock {self.ticker} - Price: {current_price}"])
+        self.logger_queue.put(["INFO", f"  Stock {self.ticker} - Nearest resistance: {resistance[1]}"])
+        self.logger_queue.put(["INFO", f"  Stock {self.ticker} - Nearest support: {support[1]}"])
+
         profit = (resistance[1]-current_price)/current_price
         is_near_support = current_price < support[1] * 1.03
-        print(self.ticker, " Estimated profit: ", round(profit, 2)*100, "%")
-        print(self.ticker, " Is near support: ", is_near_support)
+
+        self.logger_queue.put(["DEBUG", f"  Stock {self.ticker} - Estimated profit: {round(profit, 2)*100}"])
+        self.logger_queue.put(["DEBUG", f"  Stock {self.ticker} - Is near support: {is_near_support}"])
 
         if support[0] == 0 and support[1] == 0:
+            self.logger_queue.put(["WARNING", f"  Stock {self.ticker}: Skipping, resistance and support not found"])
             self._q.put([self.ticker, "skip"])
-            return "skip"
         elif resistance[0] == 0 and resistance[1] == 0:
             if is_near_support:
-                print(self.ticker, "[+] Worth buying")
-                print(self.ticker, "[*] Resistance not found be careful.")
+                self.logger_queue.put(["INFO", f"  Stock {self.ticker}: Worth buying, but resistance not found"])
 
                 self._q.put([self.ticker, "buy, no resistance"])
-                return "buy, no resistance"
             else:
+                self.logger_queue.put(["INFO", f"  Stock {self.ticker}: Not worth buying. Keeping an eye on this one."])
                 self._q.put([self.ticker, "watch"])
-                return "watch"
-
-        if is_near_support and profit >= 0.2:
-            print(self.ticker, "[+] Worth buying")
+        elif is_near_support and profit >= 0.2:
+            self.logger_queue.put(["INFO", f"  Stock {self.ticker}: Worth buying"])
             self._q.put([self.ticker, "buy"])
-            return "buy"
         else:
-            print(self.ticker, "[-] Not worth buying. Keeping an eye on this one.")
+            self.logger_queue.put(["INFO", f"  Stock {self.ticker}: Not worth buying. Keeping an eye on this one."])
             self._q.put([self.ticker, "watch"])
-            return "watch"
 
     def _show_chart(self, dformat="%d/%b/%Y %H:%M", candle_width=0.6/(24 * 15), show_levels=True):
+        self.logger_queue.put(["INFO", f"  Stock {self.ticker}: Showing chart"])
         webbrowser.get("C:/Program Files (x86)/Google/Chrome/Application/chrome.exe %s").open(self.url)
 
         fig, ax = plt.subplots()
@@ -152,7 +153,6 @@ class Stock(Process):
         fig.suptitle(self.ticker + " " + t, fontsize=16, y=0.98)
         fig.subplots_adjust(top=0.8, left=0.08)
         current_price = self.get_current_price()
-        print(current_price)
 
         if show_levels:
             for level in self._levels:
@@ -168,22 +168,25 @@ class Stock(Process):
         plt.show()
 
     def __watch(self):
+        self.logger_queue.put(["INFO", f"  Stock {self.ticker}: Started watching"])
         schedule.every(1).minutes.do(self.check_if_worth_buying)
 
         chart_process = Process(target=self._show_chart)
 
         while True:
             if self._stop_event.is_set():
-                print(self.ticker, " Got exit flag. Exiting.")
+                self.logger_queue.put(["INFO", f"  Stock {self.ticker}: Got exit flag. Exiting."])
+
                 if chart_process.is_alive():
+                    self.logger_queue.put(["INFO", f"  Stock {self.ticker}: Terminating chart process"])
                     chart_process.terminate()
                 break
 
             if self._show_chart_event.is_set():
-                print(self.ticker, " Got show chart flag, showing...")
+                self.logger_queue.put(["INFO", f"  Stock {self.ticker}: Got flag, showing chart"])
 
                 if chart_process.is_alive():
-                    print("Chart is already shown")
+                    self.logger_queue.put(["INFO", f"  Stock {self.ticker}: Chart is already shown"])
                 else:
                     chart_process = Process(target=self._show_chart)
                     chart_process.start()
@@ -196,5 +199,8 @@ class Stock(Process):
     def run(self):
         self._find_levels(self._df)
         self._find_levels(self._df_for_chart)
+
+        self.logger_queue.put(["INFO", f"  Stock {self.ticker} - levels: {self.levels}"])
+
         self.check_if_worth_buying()
         self.__watch()

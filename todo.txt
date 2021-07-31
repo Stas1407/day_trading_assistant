@@ -1,4 +1,4 @@
-1. Logging to a file (Use logging module)
+# 1. Logging to a file (Use logging module)
 2. Console interface
 3. Webscraping = looking for the most volatile stocks
 4. Better trading strategies + improve current
