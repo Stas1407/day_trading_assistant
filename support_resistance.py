@@ -18,9 +18,9 @@ class Stock(Process):
         self._stop_event = Event()
         self._show_chart_event = Event()
         
-        self.logger_queue = logger_queue
+        self._logger_queue = logger_queue
 
-        self.url = "https://www.tradingview.com/chart/?symbol="+ticker
+        self._url = "https://www.tradingview.com/chart/?symbol="+ticker
 
         self._levels = []
 
@@ -89,7 +89,7 @@ class Stock(Process):
         return data['Close'][0]
 
     def check_if_worth_buying(self):
-        self.logger_queue.put(["INFO", f"  Stock {self.ticker}: Checking if worth buying"])
+        self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Checking if worth buying"])
 
         current_price = self.get_current_price()
 
@@ -102,37 +102,46 @@ class Stock(Process):
             elif current_price - level[1] >= 0 and support[1] < level[1]:
                 support = level
 
-        self.logger_queue.put(["DEBUG", f"  Stock {self.ticker} - Price: {current_price}"])
-        self.logger_queue.put(["INFO", f"  Stock {self.ticker} - Nearest resistance: {resistance[1]}"])
-        self.logger_queue.put(["INFO", f"  Stock {self.ticker} - Nearest support: {support[1]}"])
+        self._logger_queue.put(["DEBUG", f"  Stock {self.ticker} - Price: {current_price}"])
+        self._logger_queue.put(["INFO", f"  Stock {self.ticker} - Nearest resistance: {resistance[1]}"])
+        self._logger_queue.put(["INFO", f"  Stock {self.ticker} - Nearest support: {support[1]}"])
 
         profit = (resistance[1]-current_price)/current_price
         is_near_support = current_price < support[1] * 1.03
 
-        self.logger_queue.put(["DEBUG", f"  Stock {self.ticker} - Estimated profit: {round(profit, 2)*100}"])
-        self.logger_queue.put(["DEBUG", f"  Stock {self.ticker} - Is near support: {is_near_support}"])
+        self._logger_queue.put(["DEBUG", f"  Stock {self.ticker} - Estimated profit: {round(profit, 2)*100}"])
+        self._logger_queue.put(["DEBUG", f"  Stock {self.ticker} - Is near support: {is_near_support}"])
+
+        info = {'ticker': self.ticker,
+                'recommendation': "",
+                'price': current_price,
+                'resistance': resistance[1],
+                'support': support[1],
+                'profit': round(profit, 2)*100,
+                'is_near_support': is_near_support}
 
         if support[0] == 0 and support[1] == 0:
-            self.logger_queue.put(["WARNING", f"  Stock {self.ticker}: Skipping, resistance and support not found"])
-            self._q.put([self.ticker, "skip"])
+            self._logger_queue.put(["WARNING", f"  Stock {self.ticker}: Skipping, resistance and support not found"])
+            info['recommendation'] = 'skip'
         elif resistance[0] == 0 and resistance[1] == 0:
             if is_near_support:
-                self.logger_queue.put(["INFO", f"  Stock {self.ticker}: Worth buying, but resistance not found"])
-
-                self._q.put([self.ticker, "buy, no resistance"])
+                self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Worth buying, but resistance not found"])
+                info['recommendation'] = 'buy no resistance'
             else:
-                self.logger_queue.put(["INFO", f"  Stock {self.ticker}: Not worth buying. Keeping an eye on this one."])
-                self._q.put([self.ticker, "watch"])
+                self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Not worth buying. Keeping an eye on this one."])
+                info['recommendation'] = 'watch'
         elif is_near_support and profit >= 0.2:
-            self.logger_queue.put(["INFO", f"  Stock {self.ticker}: Worth buying"])
-            self._q.put([self.ticker, "buy"])
+            self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Worth buying"])
+            info['recommendation'] = 'buy'
         else:
-            self.logger_queue.put(["INFO", f"  Stock {self.ticker}: Not worth buying. Keeping an eye on this one."])
-            self._q.put([self.ticker, "watch"])
+            self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Not worth buying. Keeping an eye on this one."])
+            info['recommendation'] = 'watch'
+
+        self._q.put(info)
 
     def _show_chart(self, dformat="%d/%b/%Y %H:%M", candle_width=0.6/(24 * 15), show_levels=True):
-        self.logger_queue.put(["INFO", f"  Stock {self.ticker}: Showing chart"])
-        webbrowser.get("C:/Program Files (x86)/Google/Chrome/Application/chrome.exe %s").open(self.url)
+        self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Showing chart"])
+        webbrowser.get("C:/Program Files (x86)/Google/Chrome/Application/chrome.exe %s").open(self._url)
 
         fig, ax = plt.subplots()
 
@@ -168,25 +177,25 @@ class Stock(Process):
         plt.show()
 
     def __watch(self):
-        self.logger_queue.put(["INFO", f"  Stock {self.ticker}: Started watching"])
-        schedule.every(1).minutes.do(self.check_if_worth_buying)
+        self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Started watching"])
+        schedule.every(2).minutes.do(self.check_if_worth_buying)
 
         chart_process = Process(target=self._show_chart)
 
         while True:
             if self._stop_event.is_set():
-                self.logger_queue.put(["INFO", f"  Stock {self.ticker}: Got exit flag. Exiting."])
+                self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Got exit flag. Exiting."])
 
                 if chart_process.is_alive():
-                    self.logger_queue.put(["INFO", f"  Stock {self.ticker}: Terminating chart process"])
+                    self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Terminating chart process"])
                     chart_process.terminate()
                 break
 
             if self._show_chart_event.is_set():
-                self.logger_queue.put(["INFO", f"  Stock {self.ticker}: Got flag, showing chart"])
+                self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Got flag, showing chart"])
 
                 if chart_process.is_alive():
-                    self.logger_queue.put(["INFO", f"  Stock {self.ticker}: Chart is already shown"])
+                    self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Chart is already shown"])
                 else:
                     chart_process = Process(target=self._show_chart)
                     chart_process.start()
@@ -200,7 +209,7 @@ class Stock(Process):
         self._find_levels(self._df)
         self._find_levels(self._df_for_chart)
 
-        self.logger_queue.put(["INFO", f"  Stock {self.ticker} - levels: {self.levels}"])
+        self._logger_queue.put(["INFO", f"  Stock {self.ticker} - levels: {self.levels}"])
 
         self.check_if_worth_buying()
         self.__watch()
