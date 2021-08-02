@@ -86,7 +86,11 @@ class Stock(Process):
     def get_current_price(self):
         ticker = yfinance.Ticker(self.ticker)
         data = ticker.history(period='1d')
-        return data['Close'][0]
+
+        try:
+            return data['Close'][0]
+        except IndexError:
+            return -1
 
     def check_if_worth_buying(self):
         self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Checking if worth buying"])
@@ -94,8 +98,8 @@ class Stock(Process):
         current_price = self.get_current_price()
 
         # Find two nearest levels = support and resistance
-        resistance = (10000000, 10000000)
-        support = (0, 0)
+        resistance = [10000000, 10000000]
+        support = [0, 0]
         for level in self.levels:
             if current_price - level[1] < 0 and resistance[1] > level[1]:
                 resistance = level
@@ -111,26 +115,36 @@ class Stock(Process):
 
         self._logger_queue.put(["DEBUG", f"  Stock {self.ticker} - Estimated profit: {round(profit, 2)*100}"])
         self._logger_queue.put(["DEBUG", f"  Stock {self.ticker} - Is near support: {is_near_support}"])
+        self._logger_queue.put(["INFO", f"  Stock {self.ticker} - Volatility: {self.volatility}"])
+
+        if resistance[1] == 10000000:
+            resistance[1] = "Not found"
+            profit = "Unknown"
+        else:
+            profit = round(profit, 2)*100
 
         info = {'ticker': self.ticker,
                 'recommendation': "",
                 'price': current_price,
                 'resistance': resistance[1],
                 'support': support[1],
-                'profit': round(profit, 2)*100,
+                'profit': profit,
                 'is_near_support': is_near_support}
 
         if support[0] == 0 and support[1] == 0:
             self._logger_queue.put(["WARNING", f"  Stock {self.ticker}: Skipping, resistance and support not found"])
-            info['recommendation'] = 'skip'
-        elif resistance[0] == 0 and resistance[1] == 0:
+            info['recommendation'] = "skip"
+            self._q.put(info)
+            self._stop_event.set()
+            return
+        elif profit == "Unknown":
             if is_near_support:
                 self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Worth buying, but resistance not found"])
                 info['recommendation'] = 'buy no resistance'
             else:
                 self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Not worth buying. Keeping an eye on this one."])
                 info['recommendation'] = 'watch'
-        elif is_near_support and profit >= 0.2:
+        elif is_near_support and profit >= 15:
             self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Worth buying"])
             info['recommendation'] = 'buy'
         else:
@@ -178,7 +192,7 @@ class Stock(Process):
 
     def __watch(self):
         self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Started watching"])
-        schedule.every(2).minutes.do(self.check_if_worth_buying)
+        schedule.every(4).minutes.do(self.check_if_worth_buying)
 
         chart_process = Process(target=self._show_chart)
 

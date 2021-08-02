@@ -1,31 +1,47 @@
 from support_resistance import Stock
 from multiprocessing import Process, Event
 import time
-from utilities import handle_console_interface
+from utilities import handle_console_interface, scraper
 from tqdm import tqdm
 
 class Assistant:
-    def __init__(self, tickers, q, logger_queue, max_processes):        # TODO: Remove tickers and use a class function / another class (scraper) instead
+    def __init__(self, q, logger_queue, max_processes, tickers=None):
         self._q = q
-        self._tickers = tickers
+
+        if tickers is not None:
+            self._tickers = tickers+scraper()
+        else:
+            self._tickers = scraper()
+
         self._logger_queue = logger_queue
 
-        self._max_processes = max_processes
+        self._max_processes = min([max_processes, len(self._tickers)])
         self._processes = {}
+
         self._interface = Process()
 
-    def start_monitoring(self, tickers):
+    def start_monitoring(self, tickers, show_progress_bar=True):
         self._logger_queue.put(["INFO", "  Assistant: Starting monitoring given tickers"])
         processes = {}
 
-        for ticker in tqdm(tickers[:self._max_processes]):
-            self._logger_queue.put(["DEBUG", f"  Assistant: Starting {ticker}"])
-            s = Stock(ticker, interval="1d", period="1y", interval_chart="5m", period_chart="1d", queue=self._q,
-                      logger_queue=self._logger_queue)
-            s.name = ticker
-            s.start()
-            processes[ticker] = s
-            self._logger_queue.put(["DEBUG", f"  Assistant: {ticker} started"])
+        if show_progress_bar:
+            for ticker in tqdm(tickers[:self._max_processes]):
+                self._logger_queue.put(["DEBUG", f"  Assistant: Starting {ticker}"])
+                s = Stock(ticker, interval="1d", period="1y", interval_chart="5m", period_chart="1d", queue=self._q,
+                          logger_queue=self._logger_queue)
+                s.name = ticker
+                s.start()
+                processes[ticker] = s
+                self._logger_queue.put(["DEBUG", f"  Assistant: {ticker} started"])
+        else:
+            for ticker in tickers[:self._max_processes]:
+                self._logger_queue.put(["DEBUG", f"  Assistant: Starting {ticker}"])
+                s = Stock(ticker, interval="1d", period="1y", interval_chart="5m", period_chart="1d", queue=self._q,
+                          logger_queue=self._logger_queue)
+                s.name = ticker
+                s.start()
+                processes[ticker] = s
+                self._logger_queue.put(["DEBUG", f"  Assistant: {ticker} started"])
 
         return processes
 
@@ -49,6 +65,10 @@ class Assistant:
                 self._processes[inp].show_chart()
             elif inp.lower() == "exit":
                 break
+            elif inp[0] == '+' and not inp.isnumeric():
+                self._processes.update(self.start_monitoring([inp[1:]], show_progress_bar=False))
+                self._tickers.append(inp[1:])
+                self._q.put({"max_processes": "+1"})
             else:
                 print("[-] Wrong ticker")
 

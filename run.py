@@ -6,8 +6,8 @@ from central_logger import CentralLogger
 def main():
     print_banner('Welcome to day trading assistant', 'green')
 
-    tickers = ["MSFT", "ZS", "PANW", "PAYA", "NSA", "SMSI", "PZZA", "SREV"]
-    max_processes = len(tickers)
+    TICKERS = ["SRNE", "FCX", "X", "AKRO", "FSLY"]
+    MAX_PROCESSES = 50
 
     q = Queue()
     logging_queue = Queue()
@@ -15,7 +15,7 @@ def main():
     logger = CentralLogger(logging_queue)
     logger.start()
 
-    a = Assistant(tickers, q, logging_queue, max_processes)
+    a = Assistant(q, logging_queue, MAX_PROCESSES, tickers=TICKERS)
     a.run()
 
 
