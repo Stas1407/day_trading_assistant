@@ -1,17 +1,15 @@
 from support_resistance import Stock
-from multiprocessing import Process, Event
+from multiprocessing import Process
 import time
-from utilities import handle_console_interface, scraper
+from utilities import handle_console_interface
 from tqdm import tqdm
+from AssistantDataLoader import AssistantDataLoader
 
 class Assistant:
     def __init__(self, q, logger_queue, max_processes, tickers=None):
         self._q = q
 
-        if tickers is not None:
-            self._tickers = tickers+scraper()
-        else:
-            self._tickers = scraper()
+        self._tickers = AssistantDataLoader().get_tickers(tickers)
 
         self._logger_queue = logger_queue
 

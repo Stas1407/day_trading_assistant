@@ -69,17 +69,3 @@ def handle_console_interface(logger_queue, q, max_processes):
 
             count = 0
             table_data = [["Ticker", "Recommendation", "Profit", "Near support", "Price", "Support", "Resistance"]]
-
-
-def scraper():
-    response = requests.get("https://sampom100.github.io/UnusualVolumeDetector_Dynamic/")
-    s = BeautifulSoup(response.content, "html.parser")
-
-    tab = []
-
-    for row in s.find_all('tr'):
-        ticker = row.find("th")
-        if len(ticker.text) <= 4:
-            tab.append(ticker.text)
-
-    return tab

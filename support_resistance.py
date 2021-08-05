@@ -36,7 +36,7 @@ class Stock(Process):
         self.__volatility = np.mean(self._df['High'] - self._df['Low'])
 
         # Setting up data for chart
-        self._df_for_chart = yticker.history(interval=interval_chart, period=period_chart)
+        self._df_for_chart = yticker.history(interval=interval_chart, period=period_chart, prepost=True)    # Check if works
         self._df_for_chart['Date'] = pd.to_datetime(self._df_for_chart.index)
         self._df_for_chart['Date'] = self._df_for_chart['Date'].apply(mpl_dates.date2num)
         self._df_for_chart = self._df_for_chart.loc[:, ['Date', 'Open', 'High', 'Low', 'Close']]

@@ -2,3 +2,5 @@ venv
 .idea
 __pycache__
 day_trading_assistant.log
+secrets.py
+.gitignore
