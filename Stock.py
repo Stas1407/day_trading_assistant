@@ -14,34 +14,37 @@ class Stock(Process):
     def __init__(self, ticker, data, data_for_chart, queue, logger_queue, additional_queue):
         Process.__init__(self)
 
+        # Config
+        self._chrome_path = "C:/Program Files (x86)/Google/Chrome/Application/chrome.exe %s"
+        self._url = "https://www.tradingview.com/chart/?symbol=" + ticker
+        self._min_profit = 10        # Percent %
+
+        # Queues
         self._q = queue
         self._additional_queue = additional_queue
+        self._logger_queue = logger_queue
 
+        # Events
         self._stop_event = Event()
         self._get_data_event = Event()
         self._show_chart_event = Event()
-        
-        self._logger_queue = logger_queue
 
-        self._url = "https://www.tradingview.com/chart/?symbol="+ticker
-
-        self._levels = []
-
-        self.__ticker = ticker
-
-        # Setting up data for finding levels (support and resistance)
+        # Data for finding levels (support and resistance)
         self._df = data
         self._df['Date'] = pd.to_datetime(self._df.index)
         self._df['Date'] = self._df['Date'].apply(mpl_dates.date2num)
         self._df = self._df.loc[:, ['Date', 'Open', 'High', 'Low', 'Close']]
-        
-        self.__volatility = np.mean(self._df['High'] - self._df['Low'])
 
-        # Setting up data for chart
+        # Data for chart
         self._df_for_chart = data_for_chart
         self._df_for_chart['Date'] = pd.to_datetime(self._df_for_chart.index)
         self._df_for_chart['Date'] = self._df_for_chart['Date'].apply(mpl_dates.date2num)
         self._df_for_chart = self._df_for_chart.loc[:, ['Date', 'Open', 'High', 'Low', 'Close']]
+
+        # Variables used by class
+        self._levels = []
+        self.__ticker = ticker
+        self.__volatility = np.mean(self._df['High'] - self._df['Low'])
 
     @property
     def ticker(self):
@@ -140,7 +143,7 @@ class Stock(Process):
                 'support': support[1],
                 'profit': profit,
                 'is_near_support': is_near_support,
-                'volatility': round(int(self.volatility), 2)}
+                'volatility': round(float(self.volatility), 3)}
 
         if support[0] == 0 and support[1] == 0:
             self._logger_queue.put(["WARNING", f"  Stock {self.ticker}: Skipping, resistance and support not found"])
@@ -155,7 +158,7 @@ class Stock(Process):
             else:
                 self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Not worth buying. Keeping an eye on this one."])
                 info['recommendation'] = 'watch'
-        elif is_near_support and profit >= 15:
+        elif is_near_support and profit >= self._min_profit:
             self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Worth buying"])
             info['recommendation'] = 'buy'
         else:
@@ -166,7 +169,8 @@ class Stock(Process):
 
     def _show_chart(self, dformat="%d/%b/%Y %H:%M", candle_width=0.6/(24 * 15), show_levels=True):
         self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Showing chart"])
-        webbrowser.get("C:/Program Files (x86)/Google/Chrome/Application/chrome.exe %s").open(self._url)
+
+        webbrowser.get(self._chrome_path).open(self._url)
 
         fig, ax = plt.subplots()
 
@@ -238,7 +242,7 @@ class Stock(Process):
                 price = self.get_current_price()
                 support, resistance = self.get_nearest_support_resistance(price)
                 profit = (resistance[1] - price) / price
-                self._additional_queue.put([round(price, 2), round(support[1], 2), round(resistance[1], 2), str(round(profit, 2)*100)+"%", round(int(self.volatility), 2)])
+                self._additional_queue.put([round(price, 2), round(support[1], 2), round(resistance[1], 2), str(round(profit, 2)*100)+"%", round(float(self.volatility), 3)])
 
             schedule.run_pending()
             time.sleep(1)

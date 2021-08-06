@@ -2,9 +2,10 @@
 # 2. Console interface
 # 3. Webscraping = looking for the most volatile stocks
 # 4. Add symbols on the fly
-5. Add help menu
-6. Variables
-7. Better trading strategies + improve current
+# 5. Add help menu
+# 6. Variables
+7. Stocks balance (np. 25 from surpriver 10 from 1st unusual volume detector...)
+8. Better trading strategies + improve current
     a) improve support/resistant
         - Check if 15 min ago Open/Close price was higher than it is now and that +15 min Open/Close price is higher than now
           Mark it as stripped line.

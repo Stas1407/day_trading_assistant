@@ -7,22 +7,28 @@ from progress.bar import Bar
 import warnings
 
 class CreateDict:
-    def __init__(self, logger_queue):
+    def __init__(self, logger_queue, stocks_file_path, dict_path):
         warnings.filterwarnings("ignore")
 
-        self.taEngine = TAEngine(history_to_use=60)     # 60 bars * 15 minutes
-        self.STOCKS_FILE_PATH = "surpriver/stocks/best_stocks.txt"
-        self.DICT_PATH = "surpriver/dictionaries/data"
+        # Queue for communication with logger process
+        self._logger_queue = logger_queue
+
+        # Config
+        self.taEngine = TAEngine(history_to_use=60)     # 60 bars * 15 minutes (DATA_GRANULARITY_MINUTES)
         self.DATA_GRANULARITY_MINUTES = 15
+        self.STOCKS_FILE_PATH = stocks_file_path
+        self.DICT_PATH = dict_path
 
         self._logger_queue.put(["INFO", " CreateSurpriverDict: Loading stocks from file..."])
+
+        # Load stocks list
         self.stocks_list = open(self.STOCKS_FILE_PATH, "r").readlines()
         self.stocks_list = [str(item).strip("\n") for item in self.stocks_list]
         self.stocks_list = list(sorted(set(self.stocks_list)))
 
+        # Main dict
         self.features_dictionary_for_all_symbols = {}
 
-        self._logger_queue = logger_queue
 
     def calculate_volatility(self, stock_price_data):
         CLOSE_PRICE_INDEX = 4
@@ -36,6 +42,8 @@ class CreateDict:
         self._logger_queue.put(["INFO", " CreateSurpriverDict: Getting data from yahoo..."])
         period = "30d"
         start = time.time()
+
+        print("[+] Downloading data for surpriver from yahoo finance...")
 
         data = yf.download(
                         tickers=" ".join(self.stocks_list),

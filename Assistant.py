@@ -9,13 +9,18 @@ from terminaltables import AsciiTable
 import warnings
 
 class Assistant:
-    def __init__(self, q, logger_queue, additional_data_queue, max_processes, tickers=None):
-        warnings.filterwarnings("ignore")
-
+    def __init__(self, q, logger_queue, additional_data_queue, max_processes, create_dictionary, create_stocks_list,
+                 dictionary_file_path, stocks_file_path, tickers=None):
         self._q = q
         self._additional_queue = additional_data_queue
 
-        self._tickers, self._surpriver_tickers = AssistantDataLoader(logger_queue).get_tickers(tickers)
+        data_loader = AssistantDataLoader(logger_queue=logger_queue,
+                                          create_dictionary=create_dictionary,
+                                          create_stocks_list=create_stocks_list,
+                                          dictionary_file_path=dictionary_file_path,
+                                          stocks_file_path=stocks_file_path)
+
+        self._tickers, self._surpriver_tickers = data_loader.get_tickers(tickers)
 
         self._logger_queue = logger_queue
 
@@ -25,12 +30,13 @@ class Assistant:
         self._interface = Process()
 
     def start_monitoring(self, tickers, show_progress=True):
+        warnings.filterwarnings("ignore")
         self._logger_queue.put(["INFO", "  Assistant: Starting monitoring given tickers"])
         processes = {}
         tickers = tickers[:self._max_processes]
 
         if show_progress:
-            print("[+] Downloading data from yahoo finance (up to 3 minutes)...")
+            print("[+] Downloading data for day trading assistant from yahoo finance (up to 3 minutes)...")
 
         data = yf.download(
             tickers=" ".join(tickers),
@@ -71,7 +77,7 @@ class Assistant:
 
     def start_console_interface(self):
         self._logger_queue.put(["INFO", "  Assistant: Starting console interface"])
-        interface = Process(target=handle_console_interface, args=(self._logger_queue, self._q, self._max_processes))
+        interface = Process(target=handle_console_interface, args=(self._logger_queue, self._q, self._max_processes, self._surpriver_tickers))
         interface.name = "console_interface"
         interface.start()
 
@@ -108,10 +114,16 @@ class Assistant:
                     table_data = [["Ticker", "Price", "Support", "Resistance", "Estimated profit", "Volatility", "Prediction"]] + table_data
                     table = AsciiTable(table_data)
                     print(table.table)
+                elif inp == "help" or inp == "?":
+                    print("Commands:")
+                    print("\t <TICKER>    = Shows chart of given ticker")
+                    print("\t +<TICKER>   = Adds ticker for analysis")
+                    print("\t surpriver   = Shows stocks picked by surpriver")
+                    print("\t exit        = Close day trading assistant")
                 else:
                     print("[-] Wrong ticker")
 
-                print("Ticker (type exit to exit): ", end='')
+                print("Ticker (help for help menu): ", end='')
         except KeyboardInterrupt:
             print("[+] Exiting")
 

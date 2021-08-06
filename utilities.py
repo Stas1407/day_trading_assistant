@@ -14,17 +14,20 @@ def print_banner(text, color):
     f = Figlet(font="standard")
     print(colored(f.renderText(text), color))
 
-def handle_console_interface(logger_queue, q, max_processes):
+def handle_console_interface(logger_queue, q, max_processes, surpriver_tickers):
     logger_queue.put(["INFO", "  Assistant-interface: Console interface started"])
     print_banner('Trades for today', "yellow")
 
-    table_data = [["Ticker", "Recommendation", "Profit", "Near support", "Price", "Support", "Resistance"]]
+    surpriver_tickers = [i[0] for i in surpriver_tickers]
+
+    table_data = [["Ticker", "Recommendation", "Profit", "Near support", "Price", "Support", "Resistance", "Volatility"]]
 
     count = 0
     while True:
         stock = q.get()
 
         logger_queue.put(["DEBUG", f"  Assistant-interface: Received: {stock}"])
+        logger_queue.put(["DEBUG", f"  Assistant-interface: Surpriver tickers {surpriver_tickers}"])
 
         if "max_processes" in stock.keys():
             max_processes += 1
@@ -37,6 +40,9 @@ def handle_console_interface(logger_queue, q, max_processes):
         elif stock['recommendation'] == "skip":
             max_processes -= 1
         elif stock['recommendation'] != "watch":
+            if stock["ticker"] in surpriver_tickers:
+                stock["ticker"] += " S"
+
             if stock['profit'] == "Unknown":
                 table_data.append([stock["ticker"],
                                    stock["recommendation"],
