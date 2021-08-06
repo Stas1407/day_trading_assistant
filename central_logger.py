@@ -25,5 +25,7 @@ class CentralLogger(multiprocessing.Process):
                 self.log.info(message)
             elif log_level == "WARNING":
                 self.log.warning(message)
+            elif log_level == "ERROR":
+                self.log.error(message)
             else:
                 self.log.warning("  Central Logging: Received wrong logging level")

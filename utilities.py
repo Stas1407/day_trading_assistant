@@ -3,8 +3,6 @@ from pyfiglet import Figlet
 from termcolor import colored
 from colorama import init
 from terminaltables import AsciiTable
-import requests
-from bs4 import BeautifulSoup
 
 def cls():
     os.system('cls' if os.name == 'nt' else 'clear')
@@ -46,7 +44,8 @@ def handle_console_interface(logger_queue, q, max_processes):
                                    stock["is_near_support"],
                                    round(stock["price"], 2),
                                    round(stock["support"], 2),
-                                   stock["resistance"]])
+                                   stock["resistance"],
+                                   stock["volatility"]])
             else:
                 table_data.append([stock["ticker"],
                                    stock["recommendation"],
@@ -54,7 +53,8 @@ def handle_console_interface(logger_queue, q, max_processes):
                                    stock["is_near_support"],
                                    round(stock["price"], 2),
                                    round(stock["support"], 2),
-                                   round(stock["resistance"], 2)])
+                                   round(stock["resistance"], 2),
+                                   stock["volatility"]])
             count += 1
         else:
             count += 1
@@ -68,4 +68,4 @@ def handle_console_interface(logger_queue, q, max_processes):
             print("Ticker (type exit to exit): ", end="")
 
             count = 0
-            table_data = [["Ticker", "Recommendation", "Profit", "Near support", "Price", "Support", "Resistance"]]
+            table_data = [["Ticker", "Recommendation", "Profit", "Near support", "Price", "Support", "Resistance", "Volatility"]]

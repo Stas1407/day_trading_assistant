@@ -11,11 +11,14 @@ import schedule
 import webbrowser
 
 class Stock(Process):
-    def __init__(self, ticker, interval, period, interval_chart, period_chart, queue, logger_queue):
+    def __init__(self, ticker, data, data_for_chart, queue, logger_queue, additional_queue):
         Process.__init__(self)
 
         self._q = queue
+        self._additional_queue = additional_queue
+
         self._stop_event = Event()
+        self._get_data_event = Event()
         self._show_chart_event = Event()
         
         self._logger_queue = logger_queue
@@ -27,8 +30,7 @@ class Stock(Process):
         self.__ticker = ticker
 
         # Setting up data for finding levels (support and resistance)
-        yticker = yfinance.Ticker(ticker)
-        self._df = yticker.history(interval=interval, period=period)
+        self._df = data
         self._df['Date'] = pd.to_datetime(self._df.index)
         self._df['Date'] = self._df['Date'].apply(mpl_dates.date2num)
         self._df = self._df.loc[:, ['Date', 'Open', 'High', 'Low', 'Close']]
@@ -36,7 +38,7 @@ class Stock(Process):
         self.__volatility = np.mean(self._df['High'] - self._df['Low'])
 
         # Setting up data for chart
-        self._df_for_chart = yticker.history(interval=interval_chart, period=period_chart, prepost=True)    # Check if works
+        self._df_for_chart = data_for_chart
         self._df_for_chart['Date'] = pd.to_datetime(self._df_for_chart.index)
         self._df_for_chart['Date'] = self._df_for_chart['Date'].apply(mpl_dates.date2num)
         self._df_for_chart = self._df_for_chart.loc[:, ['Date', 'Open', 'High', 'Low', 'Close']]
@@ -58,6 +60,9 @@ class Stock(Process):
 
     def show_chart(self):
         self._show_chart_event.set()
+
+    def get_data(self):
+        self._get_data_event.set()
 
     def _is_support(self, i):
         support = self._df['Low'][i] < self._df['Low'][i - 1] < self._df['Low'][i - 2] and \
@@ -92,11 +97,7 @@ class Stock(Process):
         except IndexError:
             return -1
 
-    def check_if_worth_buying(self):
-        self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Checking if worth buying"])
-
-        current_price = self.get_current_price()
-
+    def get_nearest_support_resistance(self, current_price):
         # Find two nearest levels = support and resistance
         resistance = [10000000, 10000000]
         support = [0, 0]
@@ -106,12 +107,21 @@ class Stock(Process):
             elif current_price - level[1] >= 0 and support[1] < level[1]:
                 support = level
 
+        return support, resistance
+
+    def check_if_worth_buying(self):
+        self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Checking if worth buying"])
+
+        current_price = self.get_current_price()
+
+        (support, resistance) = self.get_nearest_support_resistance(current_price)
+
         self._logger_queue.put(["DEBUG", f"  Stock {self.ticker} - Price: {current_price}"])
         self._logger_queue.put(["INFO", f"  Stock {self.ticker} - Nearest resistance: {resistance[1]}"])
         self._logger_queue.put(["INFO", f"  Stock {self.ticker} - Nearest support: {support[1]}"])
 
         profit = (resistance[1]-current_price)/current_price
-        is_near_support = abs(current_price-support) < self.volatility
+        is_near_support = abs(current_price-support[1]) < self.volatility
 
         self._logger_queue.put(["DEBUG", f"  Stock {self.ticker} - Estimated profit: {round(profit, 2)*100}"])
         self._logger_queue.put(["DEBUG", f"  Stock {self.ticker} - Is near support: {is_near_support}"])
@@ -129,7 +139,8 @@ class Stock(Process):
                 'resistance': resistance[1],
                 'support': support[1],
                 'profit': profit,
-                'is_near_support': is_near_support}
+                'is_near_support': is_near_support,
+                'volatility': round(int(self.volatility), 2)}
 
         if support[0] == 0 and support[1] == 0:
             self._logger_queue.put(["WARNING", f"  Stock {self.ticker}: Skipping, resistance and support not found"])
@@ -171,7 +182,14 @@ class Stock(Process):
         fig.tight_layout()
         fig.set_size_inches(10.5, 6.5)
 
-        t = str(self._df_for_chart.index[0])
+        try:
+            t = str(self._df_for_chart.index[0])
+        except Exception as e:
+            print("[-] Something went wrong. Check logs for details")
+            self._logger_queue.put(["ERROR", f" Stock {self.ticker} - {e} while showing chart"])
+            self._logger_queue.put(["ERROR", f" Stock {self.ticker} - {self._df_for_chart}"])
+            self._logger_queue.put(["ERROR", f" Stock {self.ticker} - length: {len(self._df_for_chart)}"])
+            t = "Not found"
 
         fig.suptitle(self.ticker + " " + t, fontsize=16, y=0.98)
         fig.subplots_adjust(top=0.8, left=0.08)
@@ -215,6 +233,12 @@ class Stock(Process):
                     chart_process.start()
 
                 self._show_chart_event.clear()
+
+            if self._get_data_event.is_set():
+                price = self.get_current_price()
+                support, resistance = self.get_nearest_support_resistance(price)
+                profit = (resistance[1] - price) / price
+                self._additional_queue.put([round(price, 2), round(support[1], 2), round(resistance[1], 2), str(round(profit, 2)*100)+"%", round(int(self.volatility), 2)])
 
             schedule.run_pending()
             time.sleep(1)

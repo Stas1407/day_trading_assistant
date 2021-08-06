@@ -43,7 +43,7 @@ class CreateDict:
                         interval=str(self.DATA_GRANULARITY_MINUTES) + "m",
                         group_by='ticker',
                         auto_adjust=False,
-                        progress=False)
+                        progress=True)
 
         self._logger_queue.put(["DEBUG", f" CreateSurpriverDict: Got data after {time.time()-start}s"])
         return data

@@ -11,11 +11,12 @@ def main():
 
     q = Queue()
     logging_queue = Queue()
+    additional_data_queue = Queue()
 
     logger = CentralLogger(logging_queue)
     logger.start()
 
-    a = Assistant(q, logging_queue, MAX_PROCESSES, tickers=TICKERS)
+    a = Assistant(q, logging_queue, additional_data_queue, MAX_PROCESSES, tickers=TICKERS)
     a.run()
 
 

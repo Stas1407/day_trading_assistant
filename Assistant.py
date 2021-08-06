@@ -1,15 +1,21 @@
 from Stock import Stock
 from multiprocessing import Process
 import time
-from utilities import handle_console_interface
+from utilities import handle_console_interface, print_banner
 from tqdm import tqdm
 from AssistantDataLoader import AssistantDataLoader
+import yfinance as yf
+from terminaltables import AsciiTable
+import warnings
 
 class Assistant:
-    def __init__(self, q, logger_queue, max_processes, tickers=None):
-        self._q = q
+    def __init__(self, q, logger_queue, additional_data_queue, max_processes, tickers=None):
+        warnings.filterwarnings("ignore")
 
-        self._tickers = AssistantDataLoader(logger_queue).get_tickers(tickers)
+        self._q = q
+        self._additional_queue = additional_data_queue
+
+        self._tickers, self._surpriver_tickers = AssistantDataLoader(logger_queue).get_tickers(tickers)
 
         self._logger_queue = logger_queue
 
@@ -18,24 +24,44 @@ class Assistant:
 
         self._interface = Process()
 
-    def start_monitoring(self, tickers, show_progress_bar=True):
+    def start_monitoring(self, tickers, show_progress=True):
         self._logger_queue.put(["INFO", "  Assistant: Starting monitoring given tickers"])
         processes = {}
+        tickers = tickers[:self._max_processes]
 
-        if show_progress_bar:
-            for ticker in tqdm(tickers[:self._max_processes]):
+        if show_progress:
+            print("[+] Downloading data from yahoo finance (up to 3 minutes)...")
+
+        data = yf.download(
+            tickers=" ".join(tickers),
+            period="1y",
+            interval="1d",
+            group_by='ticker')
+
+        data_for_chart = yf.download(
+            tickers=" ".join(tickers),
+            period="1d",
+            interval="5m",
+            group_by='ticker',
+            prepost=True)
+
+        if show_progress:
+            print_banner('Preparing Trades', 'blue')
+
+        if show_progress:
+            for ticker in tqdm(tickers):
                 self._logger_queue.put(["DEBUG", f"  Assistant: Starting {ticker}"])
-                s = Stock(ticker, interval="1d", period="1y", interval_chart="5m", period_chart="1d", queue=self._q,
-                          logger_queue=self._logger_queue)
+                s = Stock(ticker, data=data[ticker], data_for_chart=data_for_chart[ticker], queue=self._q,
+                          logger_queue=self._logger_queue, additional_queue=self._additional_queue)
                 s.name = ticker
                 s.start()
                 processes[ticker] = s
                 self._logger_queue.put(["DEBUG", f"  Assistant: {ticker} started"])
         else:
-            for ticker in tickers[:self._max_processes]:
+            for ticker in tickers:
                 self._logger_queue.put(["DEBUG", f"  Assistant: Starting {ticker}"])
-                s = Stock(ticker, interval="1d", period="1y", interval_chart="5m", period_chart="1d", queue=self._q,
-                          logger_queue=self._logger_queue)
+                s = Stock(ticker, data=data[ticker], data_for_chart=data_for_chart[ticker], queue=self._q,
+                          logger_queue=self._logger_queue, additional_queue=self._additional_queue)
                 s.name = ticker
                 s.start()
                 processes[ticker] = s
@@ -54,23 +80,41 @@ class Assistant:
     def handle_input(self):
         self._logger_queue.put(["INFO", "  Assistant: Handling input started"])
 
-        while True:
-            inp = input()
+        try:
+            while True:
+                inp = input()
 
-            if inp.isnumeric():
-                self._processes[self._tickers[int(inp)]].show_chart()
-            elif inp in self._processes.keys():
-                self._processes[inp].show_chart()
-            elif inp.lower() == "exit":
-                break
-            elif inp[0] == '+' and not inp.isnumeric():
-                self._processes.update(self.start_monitoring([inp[1:]], show_progress_bar=False))
-                self._tickers.append(inp[1:])
-                self._q.put({"max_processes": "+1"})
-            else:
-                print("[-] Wrong ticker")
+                if inp.isnumeric():
+                    self._processes[self._tickers[int(inp)]].show_chart()
+                elif inp in self._processes.keys():
+                    self._processes[inp].show_chart()
+                elif inp.lower() == "exit":
+                    break
+                elif inp[0] == '+' and not inp.isnumeric():
+                    self._processes.update(self.start_monitoring([inp[1:]], show_progress=False))
+                    self._tickers.append(inp[1:])
+                    self._q.put({"max_processes": "+1"})
+                elif inp == "surpriver":
+                    table_data = []
+                    for ticker, prediction in self._surpriver_tickers:
+                        if self._processes[ticker].is_alive():
+                            self._processes[ticker].get_data()
 
-            print("Ticker (type exit to exit): ", end='')
+                            data = self._additional_queue.get()
+
+                            table_data.append([ticker]+data+[round(prediction, 2)])
+
+                    sorted(table_data, key=lambda x: x[4])
+                    table_data = [["Ticker", "Price", "Support", "Resistance", "Estimated profit", "Volatility", "Prediction"]] + table_data
+                    table = AsciiTable(table_data)
+                    print(table.table)
+                else:
+                    print("[-] Wrong ticker")
+
+                print("Ticker (type exit to exit): ", end='')
+        except KeyboardInterrupt:
+            print("[+] Exiting")
+
         self.stop()
 
     def run(self):

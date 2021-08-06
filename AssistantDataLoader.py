@@ -101,7 +101,7 @@ class AssistantDataLoader:
         self._logger_queue.put(["DEBUG", f" AssistantDataLoader: Surpriver returned: {surpriver_tickers}"])
         self._logger_queue.put(["INFO", f"AssistantDataLoader: Surpriver returned {len(surpriver_tickers)} tickers"])
 
-        tickers.extend(surpriver_tickers)
+        tickers.extend([i[0] for i in surpriver_tickers])
 
         self._logger_queue.put(["INFO", " AssistantDataLoader: Running scraper"])
         scraper_tickers = self.scraper()
@@ -111,4 +111,4 @@ class AssistantDataLoader:
 
         tickers.extend(scraper_tickers)
 
-        return tickers
+        return tickers, surpriver_tickers
