@@ -1,4 +1,4 @@
-from support_resistance import Stock
+from Stock import Stock
 from multiprocessing import Process
 import time
 from utilities import handle_console_interface
@@ -9,7 +9,7 @@ class Assistant:
     def __init__(self, q, logger_queue, max_processes, tickers=None):
         self._q = q
 
-        self._tickers = AssistantDataLoader().get_tickers(tickers)
+        self._tickers = AssistantDataLoader(logger_queue).get_tickers(tickers)
 
         self._logger_queue = logger_queue
 

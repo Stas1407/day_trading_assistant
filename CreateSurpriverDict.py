@@ -7,7 +7,7 @@ from progress.bar import Bar
 import warnings
 
 class CreateDict:
-    def __init__(self):
+    def __init__(self, logger_queue):
         warnings.filterwarnings("ignore")
 
         self.taEngine = TAEngine(history_to_use=60)     # 60 bars * 15 minutes
@@ -15,12 +15,14 @@ class CreateDict:
         self.DICT_PATH = "surpriver/dictionaries/data"
         self.DATA_GRANULARITY_MINUTES = 15
 
-        print("Loading all stocks from file...")
+        self._logger_queue.put(["INFO", " CreateSurpriverDict: Loading stocks from file..."])
         self.stocks_list = open(self.STOCKS_FILE_PATH, "r").readlines()
         self.stocks_list = [str(item).strip("\n") for item in self.stocks_list]
         self.stocks_list = list(sorted(set(self.stocks_list)))
 
         self.features_dictionary_for_all_symbols = {}
+
+        self._logger_queue = logger_queue
 
     def calculate_volatility(self, stock_price_data):
         CLOSE_PRICE_INDEX = 4
@@ -31,7 +33,7 @@ class CreateDict:
         return volatility
 
     def get_data(self):
-        print("Getting data from yahoo...")
+        self._logger_queue.put(["INFO", " CreateSurpriverDict: Getting data from yahoo..."])
         period = "30d"
         start = time.time()
 
@@ -43,14 +45,13 @@ class CreateDict:
                         auto_adjust=False,
                         progress=False)
 
-        print(time.time()-start)
+        self._logger_queue.put(["DEBUG", f" CreateSurpriverDict: Got data after {time.time()-start}s"])
         return data
 
     def process_data(self, stock_prices):
         stock_prices = stock_prices.reset_index()
         stock_prices = stock_prices[['Datetime', 'Open', 'High', 'Low', 'Close', 'Volume']]
 
-        # No testing
         stock_prices_list = stock_prices.values.tolist()
         stock_prices_list = stock_prices_list[1:]
         historical_prices = pd.DataFrame(stock_prices_list)
@@ -60,8 +61,9 @@ class CreateDict:
 
     def run(self):
         data = self.get_data()
-        bar = Bar("Processing", max=len(self.stocks_list))
+        bar = Bar("Creating data for surpriver", max=len(self.stocks_list))
 
+        self._logger_queue.put(["INFO", " CreateSurpriverDict: Started creating dict"])
         for symbol in self.stocks_list:
             stock_price_data = data[symbol]
             bar.next()
@@ -72,11 +74,10 @@ class CreateDict:
 
             # Filter low volatility stocks
             if volatility < 0.05:
-                print("[+] Too low volatility: ", symbol)
+                self._logger_queue.put(["DEBUG", f" CreateSurpriverDict: Too low volatility - {symbol}"])
                 continue
 
             features_dictionary = self.taEngine.get_technical_indicators(stock_price_data)
-            feature_list = self.taEngine.get_features(features_dictionary)
 
             # Add to dictionary
             self.features_dictionary_for_all_symbols[symbol] = {"features": features_dictionary,
@@ -89,5 +90,6 @@ class CreateDict:
 
         bar.finish()
 
-        print("Dict length: ", len(self.features_dictionary_for_all_symbols))
+        self._logger_queue.put(["INFO", f" CreateSurpriverDict: Dict created length - {len(self.features_dictionary_for_all_symbols)}"])
+
         np.save(self.DICT_PATH, self.features_dictionary_for_all_symbols)

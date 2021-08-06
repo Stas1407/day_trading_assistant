@@ -111,7 +111,7 @@ class Stock(Process):
         self._logger_queue.put(["INFO", f"  Stock {self.ticker} - Nearest support: {support[1]}"])
 
         profit = (resistance[1]-current_price)/current_price
-        is_near_support = current_price < support[1] * 1.03
+        is_near_support = abs(current_price-support) < self.volatility
 
         self._logger_queue.put(["DEBUG", f"  Stock {self.ticker} - Estimated profit: {round(profit, 2)*100}"])
         self._logger_queue.put(["DEBUG", f"  Stock {self.ticker} - Is near support: {is_near_support}"])
