@@ -6,10 +6,13 @@ from bs4 import BeautifulSoup
 from surpriver.detection_engine import Surpriver
 
 class AssistantDataLoader:
-    def __init__(self, logger_queue, create_stocks_list, create_dictionary, dictionary_file_path, stocks_file_path):
+    def __init__(self, logger_queue, create_stocks_list, create_dictionary, dictionary_file_path, stocks_file_path, scraper_limit, max_stocks_list_size, max_surpriver_stocks_num):
         # Config
         self.create_stocks_list_bool = create_stocks_list
         self.create_dictionary_bool = create_dictionary
+        self._scraper_limit = scraper_limit
+        self._max_stocks_list_size = max_stocks_list_size
+        self._max_surpriver_stocks_num = max_surpriver_stocks_num
 
         self._stocks_file_path = stocks_file_path
         self._dictionary_file_path = dictionary_file_path
@@ -54,8 +57,8 @@ class AssistantDataLoader:
             data = json.loads(response.content)
             self._logger_queue.put(["DEBUG", f" AssistantDataLoader: Now received {len(data)} stocks"])
 
-        self._logger_queue.put(["DEBUG", f" AssistantDataLoader: Shortening data to 1200 stocks"])
-        data = data[:1200]
+        self._logger_queue.put(["DEBUG", f" AssistantDataLoader: Shortening data to {self._max_stocks_list_size} stocks"])
+        data = data[:self._max_stocks_list_size]
 
         self._logger_queue.put(["DEBUG", f" AssistantDataLoader: Writing to file"])
 
@@ -94,7 +97,7 @@ class AssistantDataLoader:
 
         tab = sorted(tab, key=lambda x: int(x[1]), reverse=True)
         tab = [i[0] for i in tab]
-        tab = tab[:25]
+        tab = tab[:self._scraper_limit]
 
         return tab
 
@@ -111,7 +114,7 @@ class AssistantDataLoader:
             self.create_surpriver_dictionary()
 
         self._logger_queue.put(["INFO", " AssistantDataLoader: Initializing surpriver"])
-        surpriver = Surpriver(top_n=25,
+        surpriver = Surpriver(top_n=self._max_surpriver_stocks_num,
                               history_to_use=60,
                               min_volume=5000,
                               data_dictionary_path="surpriver/dictionaries/data.npy",

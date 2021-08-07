@@ -1,5 +1,5 @@
 from Stock import Stock
-from multiprocessing import Process
+from multiprocessing import Process, Queue
 import time
 from utilities import handle_console_interface, print_banner
 from tqdm import tqdm
@@ -10,15 +10,19 @@ import warnings
 
 class Assistant:
     def __init__(self, q, logger_queue, additional_data_queue, max_processes, create_dictionary, create_stocks_list,
-                 dictionary_file_path, stocks_file_path, tickers=None):
+                 dictionary_file_path, stocks_file_path, scraper_limit, max_stocks_list_size, max_surpriver_stocks_num, tickers=None):
         self._q = q
         self._additional_queue = additional_data_queue
+        self._console_interface_queue = Queue()
 
         data_loader = AssistantDataLoader(logger_queue=logger_queue,
                                           create_dictionary=create_dictionary,
                                           create_stocks_list=create_stocks_list,
                                           dictionary_file_path=dictionary_file_path,
-                                          stocks_file_path=stocks_file_path)
+                                          stocks_file_path=stocks_file_path,
+                                          scraper_limit=scraper_limit,
+                                          max_stocks_list_size=max_stocks_list_size,
+                                          max_surpriver_stocks_num=max_surpriver_stocks_num)
 
         self._tickers, self._surpriver_tickers = data_loader.get_tickers(tickers)
 
@@ -36,6 +40,7 @@ class Assistant:
         tickers = tickers[:self._max_processes]
 
         if show_progress:
+            print_banner("Downloading final data", "cyan")
             print("[+] Downloading data for day trading assistant from yahoo finance (up to 3 minutes)...")
 
         data = yf.download(
@@ -77,7 +82,8 @@ class Assistant:
 
     def start_console_interface(self):
         self._logger_queue.put(["INFO", "  Assistant: Starting console interface"])
-        interface = Process(target=handle_console_interface, args=(self._logger_queue, self._q, self._max_processes, self._surpriver_tickers))
+        interface = Process(target=handle_console_interface, args=(self._logger_queue, self._q, self._max_processes,
+                                                                   self._surpriver_tickers, self._console_interface_queue))
         interface.name = "console_interface"
         interface.start()
 
@@ -114,11 +120,31 @@ class Assistant:
                     table_data = [["Ticker", "Price", "Support", "Resistance", "Estimated profit", "Volatility", "Prediction"]] + table_data
                     table = AsciiTable(table_data)
                     print(table.table)
+                elif "show" in inp:
+                    self._q.put({"get_worth_buying": ""})
+
+                    worth_buying = self._console_interface_queue.get()
+
+                    splitted_inp = inp.split(" ")
+
+                    if len(splitted_inp) == 3:
+                        show_from = int(splitted_inp[1])
+                        if show_from >= len(worth_buying):
+                            show_from = 0
+                        show_to = int(splitted_inp[2])
+                    else:
+                        show_from = 0
+                        show_to = int(splitted_inp[1])
+
+                    for stock in worth_buying[show_from:show_to]:
+                        self._processes[stock].show_chart()
                 elif inp == "help" or inp == "?":
                     print("Commands:")
-                    print("\t <TICKER>    = Shows chart of given ticker")
-                    print("\t +<TICKER>   = Adds ticker for analysis")
-                    print("\t surpriver   = Shows stocks picked by surpriver")
+                    print("\t <TICKER>      = Shows chart of given ticker")
+                    print("\t +<TICKER>     = Adds ticker for analysis")
+                    print("\t surpriver     = Shows stocks picked by surpriver")
+                    print("\t show <a> <b>  = Shows charts for stocks from a to b that are worth buying\n"+
+                                              "ie. show 0 5  = Show charts for stocks on positions from 0 to 5")
                     print("\t exit        = Close day trading assistant")
                 else:
                     print("[-] Wrong ticker")

@@ -14,13 +14,15 @@ def print_banner(text, color):
     f = Figlet(font="standard")
     print(colored(f.renderText(text), color))
 
-def handle_console_interface(logger_queue, q, max_processes, surpriver_tickers):
+def handle_console_interface(logger_queue, q, max_processes, surpriver_tickers, console_interface_queue):
     logger_queue.put(["INFO", "  Assistant-interface: Console interface started"])
     print_banner('Trades for today', "yellow")
 
     surpriver_tickers = [i[0] for i in surpriver_tickers]
 
     table_data = [["Ticker", "Recommendation", "Profit", "Near support", "Price", "Support", "Resistance", "Volatility"]]
+    worth_attention = []
+    worth_buying = []
 
     count = 0
     while True:
@@ -33,6 +35,10 @@ def handle_console_interface(logger_queue, q, max_processes, surpriver_tickers):
             max_processes += 1
             continue
 
+        if "get_worth_buying" in stock.keys():
+            console_interface_queue.put(worth_buying)
+            continue
+
         if stock['ticker'] == "exit":
             print_banner("Goodbye !", "green")
             logger_queue.put(["INFO", "  Assistant-interface: Got exit flag. Exiting..."])
@@ -40,6 +46,8 @@ def handle_console_interface(logger_queue, q, max_processes, surpriver_tickers):
         elif stock['recommendation'] == "skip":
             max_processes -= 1
         elif stock['recommendation'] != "watch":
+            worth_attention.append(stock["ticker"])
+
             if stock["ticker"] in surpriver_tickers:
                 stock["ticker"] += " S"
 
@@ -75,3 +83,5 @@ def handle_console_interface(logger_queue, q, max_processes, surpriver_tickers):
 
             count = 0
             table_data = [["Ticker", "Recommendation", "Profit", "Near support", "Price", "Support", "Resistance", "Volatility"]]
+            worth_buying = worth_attention.copy()
+            worth_attention.clear()

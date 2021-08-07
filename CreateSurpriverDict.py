@@ -5,6 +5,7 @@ import pandas as pd
 import time
 from progress.bar import Bar
 import warnings
+from utilities import print_banner
 
 class CreateDict:
     def __init__(self, logger_queue, stocks_file_path, dict_path):
@@ -57,19 +58,25 @@ class CreateDict:
         return data
 
     def process_data(self, stock_prices):
-        stock_prices = stock_prices.reset_index()
-        stock_prices = stock_prices[['Datetime', 'Open', 'High', 'Low', 'Close', 'Volume']]
+        try:
+            stock_prices = stock_prices.reset_index()
+            stock_prices = stock_prices[['Datetime', 'Open', 'High', 'Low', 'Close', 'Volume']]
 
-        stock_prices_list = stock_prices.values.tolist()
-        stock_prices_list = stock_prices_list[1:]
-        historical_prices = pd.DataFrame(stock_prices_list)
-        historical_prices.columns = ['Datetime', 'Open', 'High', 'Low', 'Close', 'Volume']
+            stock_prices_list = stock_prices.values.tolist()
+            stock_prices_list = stock_prices_list[1:]
+            historical_prices = pd.DataFrame(stock_prices_list)
+            historical_prices.columns = ['Datetime', 'Open', 'High', 'Low', 'Close', 'Volume']
 
-        return historical_prices
+            return historical_prices
+        except KeyError as e:
+            self._logger_queue.put(["ERROR", e])
+            print("[-] Something went wrong. Please try to rerun the application after a few minutes")
+            return ""
 
     def run(self):
         data = self.get_data()
-        bar = Bar("Creating data for surpriver", max=len(self.stocks_list))
+        print_banner("Preparing data for surpriver", "red")
+        bar = Bar("", max=len(self.stocks_list))
 
         self._logger_queue.put(["INFO", " CreateSurpriverDict: Started creating dict"])
         for symbol in self.stocks_list:
@@ -77,6 +84,8 @@ class CreateDict:
             bar.next()
 
             stock_price_data = self.process_data(stock_price_data)
+            if str(stock_price_data) == "":
+                continue
 
             volatility = self.calculate_volatility(stock_price_data)
 
