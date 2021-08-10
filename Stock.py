@@ -112,7 +112,7 @@ class Stock(Process):
 
         return support, resistance
 
-    def check_if_worth_buying(self):
+    def check_if_worth_attention(self):
         self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Checking if worth buying"])
 
         current_price = self.get_current_price()
@@ -137,7 +137,7 @@ class Stock(Process):
             profit = round(profit, 2)*100
 
         info = {'ticker': self.ticker,
-                'recommendation': "",
+                'state': "",
                 'price': current_price,
                 'resistance': resistance[1],
                 'support': support[1],
@@ -147,23 +147,23 @@ class Stock(Process):
 
         if support[0] == 0 and support[1] == 0:
             self._logger_queue.put(["WARNING", f"  Stock {self.ticker}: Skipping, resistance and support not found"])
-            info['recommendation'] = "skip"
+            info['state'] = "skip"
             self._q.put(info)
             self._stop_event.set()
             return
         elif profit == "Unknown":
             if is_near_support:
-                self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Worth buying, but resistance not found"])
-                info['recommendation'] = 'buy no resistance'
+                self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Worth attention, but resistance not found"])
+                info['state'] = 'worth attention no resistance'
             else:
-                self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Not worth buying. Keeping an eye on this one."])
-                info['recommendation'] = 'watch'
+                self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Not worth attention. Keeping an eye on this one."])
+                info['state'] = 'watch'
         elif is_near_support and profit >= self._min_profit:
-            self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Worth buying"])
-            info['recommendation'] = 'buy'
+            self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Worth attention"])
+            info['state'] = 'worth attention'
         else:
-            self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Not worth buying. Keeping an eye on this one."])
-            info['recommendation'] = 'watch'
+            self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Not worth attention. Keeping an eye on this one."])
+            info['state'] = 'watch'
 
         self._q.put(info)
 
@@ -189,11 +189,13 @@ class Stock(Process):
         try:
             t = str(self._df_for_chart.index[0])
         except Exception as e:
-            print("[-] Something went wrong. Check logs for details")
+            print("\n[-] Something went wrong. Check logs for details")
+            print("Try running with --prepost False  (It disables pre and post market data)")          # TODO
             self._logger_queue.put(["ERROR", f" Stock {self.ticker} - {e} while showing chart"])
             self._logger_queue.put(["ERROR", f" Stock {self.ticker} - {self._df_for_chart}"])
             self._logger_queue.put(["ERROR", f" Stock {self.ticker} - length: {len(self._df_for_chart)}"])
-            t = "Not found"
+
+            return
 
         fig.suptitle(self.ticker + " " + t, fontsize=16, y=0.98)
         fig.subplots_adjust(top=0.8, left=0.08)
@@ -214,7 +216,7 @@ class Stock(Process):
 
     def __watch(self):
         self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Started watching"])
-        schedule.every(4).minutes.do(self.check_if_worth_buying)
+        schedule.every(4).minutes.do(self.check_if_worth_attention)
 
         chart_process = Process(target=self._show_chart)
 
@@ -253,5 +255,5 @@ class Stock(Process):
 
         self._logger_queue.put(["INFO", f"  Stock {self.ticker} - levels: {self.levels}"])
 
-        self.check_if_worth_buying()
+        self.check_if_worth_attention()
         self.__watch()

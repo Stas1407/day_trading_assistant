@@ -13,6 +13,7 @@ class AssistantDataLoader:
         self._scraper_limit = scraper_limit
         self._max_stocks_list_size = max_stocks_list_size
         self._max_surpriver_stocks_num = max_surpriver_stocks_num
+        self._run_surpriver = True
 
         self._stocks_file_path = stocks_file_path
         self._dictionary_file_path = dictionary_file_path
@@ -43,7 +44,9 @@ class AssistantDataLoader:
         self._logger_queue = logger_queue
 
     def create_surpriver_dictionary(self):
-        CreateDict(self._logger_queue, self._stocks_file_path, self._dictionary_file_path).run()
+        if not CreateDict(self._logger_queue, self._stocks_file_path, self._dictionary_file_path).run():
+            # self._run_surpriver = False
+            pass
 
     def create_stocks_list(self):
         response = requests.get(self._stock_screener_url)
@@ -97,7 +100,6 @@ class AssistantDataLoader:
 
         tab = sorted(tab, key=lambda x: int(x[1]), reverse=True)
         tab = [i[0] for i in tab]
-        tab = tab[:self._scraper_limit]
 
         return tab
 
@@ -113,28 +115,33 @@ class AssistantDataLoader:
             self._logger_queue.put(["INFO", " AssistantDataLoader: Creating dictionary for surpriver..."])
             self.create_surpriver_dictionary()
 
-        self._logger_queue.put(["INFO", " AssistantDataLoader: Initializing surpriver"])
-        surpriver = Surpriver(top_n=self._max_surpriver_stocks_num,
-                              history_to_use=60,
-                              min_volume=5000,
-                              data_dictionary_path="surpriver/dictionaries/data.npy",
-                              data_granularity_minutes=15,
-                              output_format="None",
-                              volatility_filter=0.05,
-                              stock_list="best_stocks.txt",
-                              data_source="yahoo_finance",
-                              logger_queue=self._logger_queue)
+        if self._run_surpriver:
+            self._logger_queue.put(["INFO", " AssistantDataLoader: Initializing surpriver"])
+            surpriver = Surpriver(top_n=self._max_surpriver_stocks_num,
+                                  history_to_use=60,
+                                  min_volume=5000,
+                                  data_dictionary_path="surpriver/dictionaries/data.npy",
+                                  data_granularity_minutes=15,
+                                  output_format="None",
+                                  volatility_filter=0.05,
+                                  stock_list="best_stocks.txt",
+                                  data_source="yahoo_finance",
+                                  logger_queue=self._logger_queue)
 
-        self._logger_queue.put(["INFO", " AssistantDataLoader: Running surpriver"])
-        surpriver_tickers = surpriver.find_anomalies()
+            self._logger_queue.put(["INFO", " AssistantDataLoader: Running surpriver"])
+            surpriver_tickers = surpriver.find_anomalies()
 
-        self._logger_queue.put(["DEBUG", f" AssistantDataLoader: Surpriver returned: {surpriver_tickers}"])
-        self._logger_queue.put(["INFO", f"AssistantDataLoader: Surpriver returned {len(surpriver_tickers)} tickers"])
+            self._logger_queue.put(["DEBUG", f" AssistantDataLoader: Surpriver returned: {surpriver_tickers}"])
+            self._logger_queue.put(["INFO", f"AssistantDataLoader: Surpriver returned {len(surpriver_tickers)} tickers"])
 
-        tickers.extend([i[0] for i in surpriver_tickers])
+            tickers.extend([i[0] for i in surpriver_tickers])
+        else:
+            surpriver_tickers = [[]]
 
         self._logger_queue.put(["INFO", " AssistantDataLoader: Running scraper"])
         scraper_tickers = self.scraper()
+        limit_left = self._scraper_limit + self._max_surpriver_stocks_num - len(tickers)
+        scraper_tickers = scraper_tickers[:limit_left]
 
         self._logger_queue.put(["DEBUG", f"AssistantDataLoader: Scraper returned: {scraper_tickers}"])
         self._logger_queue.put(["INFO", f"AssistantDataLoader: Scraper returned {len(scraper_tickers)} tickers"])

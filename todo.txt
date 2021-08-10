@@ -4,9 +4,10 @@
 # 4. Add symbols on the fly
 # 5. Add help menu
 # 6. Variables
-7. Stocks balance (np. 25 from surpriver 10 from 1st unusual volume detector...)
+# 7. Stocks balance (np. 25 from surpriver 10 from 1st unusual volume detector...)
 8. Better trading strategies + improve current
-    a) improve support/resistant
-        - Check if 15 min ago Open/Close price was higher than it is now and that +15 min Open/Close price is higher than now
-          Mark it as stripped line.
-    b) find accumulation zones
+    a) find accumulation zones / price cycles = another project
+# 9. Replace recommendation buy with something else (ie. column recommandation = state worth attention/not worth attention + additional column info about no resistance)
+# 10. Add source column in today's trades table (sources:  surpriver/scraper)
+11. Test surpriver on full list of stocks
+11. Add argparser

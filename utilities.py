@@ -18,9 +18,12 @@ def handle_console_interface(logger_queue, q, max_processes, surpriver_tickers, 
     logger_queue.put(["INFO", "  Assistant-interface: Console interface started"])
     print_banner('Trades for today', "yellow")
 
-    surpriver_tickers = [i[0] for i in surpriver_tickers]
+    surpriver_tickers_dict = {}
 
-    table_data = [["Ticker", "Recommendation", "Profit", "Near support", "Price", "Support", "Resistance", "Volatility"]]
+    for symbol, prediction in surpriver_tickers:
+        surpriver_tickers_dict[symbol] = prediction
+
+    table_data = [["Ticker", "state", "Profit", "Near support", "Price", "Support", "Resistance", "Volatility", "Source"]]
     worth_attention = []
     worth_buying = []
 
@@ -29,7 +32,6 @@ def handle_console_interface(logger_queue, q, max_processes, surpriver_tickers, 
         stock = q.get()
 
         logger_queue.put(["DEBUG", f"  Assistant-interface: Received: {stock}"])
-        logger_queue.put(["DEBUG", f"  Assistant-interface: Surpriver tickers {surpriver_tickers}"])
 
         if "max_processes" in stock.keys():
             max_processes += 1
@@ -41,34 +43,38 @@ def handle_console_interface(logger_queue, q, max_processes, surpriver_tickers, 
 
         if stock['ticker'] == "exit":
             print_banner("Goodbye !", "green")
+            print("[+] Exiting...")
             logger_queue.put(["INFO", "  Assistant-interface: Got exit flag. Exiting..."])
             break
-        elif stock['recommendation'] == "skip":
+        elif stock['state'] == "skip":
             max_processes -= 1
-        elif stock['recommendation'] != "watch":
+        elif stock['state'] == "worth attention":
+            source = "Web scraper"
             worth_attention.append(stock["ticker"])
 
-            if stock["ticker"] in surpriver_tickers:
-                stock["ticker"] += " S"
+            if stock["ticker"] in surpriver_tickers_dict.keys():
+                source = "Surpriver (" + str(surpriver_tickers_dict[stock["ticker"]]) + ") "
 
             if stock['profit'] == "Unknown":
                 table_data.append([stock["ticker"],
-                                   stock["recommendation"],
+                                   stock["state"],
                                    stock["profit"],
                                    stock["is_near_support"],
                                    round(stock["price"], 2),
                                    round(stock["support"], 2),
                                    stock["resistance"],
-                                   stock["volatility"]])
+                                   stock["volatility"],
+                                   source])
             else:
                 table_data.append([stock["ticker"],
-                                   stock["recommendation"],
+                                   stock["state"],
                                    str(int(stock["profit"])) + " %",
                                    stock["is_near_support"],
                                    round(stock["price"], 2),
                                    round(stock["support"], 2),
                                    round(stock["resistance"], 2),
-                                   stock["volatility"]])
+                                   stock["volatility"],
+                                   source])
             count += 1
         else:
             count += 1
@@ -82,6 +88,6 @@ def handle_console_interface(logger_queue, q, max_processes, surpriver_tickers, 
             print("Ticker (type exit to exit): ", end="")
 
             count = 0
-            table_data = [["Ticker", "Recommendation", "Profit", "Near support", "Price", "Support", "Resistance", "Volatility"]]
+            table_data = [["Ticker", "State", "Profit", "Near support", "Price", "Support", "Resistance", "Volatility", "Source"]]
             worth_buying = worth_attention.copy()
             worth_attention.clear()

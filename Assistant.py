@@ -10,11 +10,15 @@ import warnings
 
 class Assistant:
     def __init__(self, q, logger_queue, additional_data_queue, max_processes, create_dictionary, create_stocks_list,
-                 dictionary_file_path, stocks_file_path, scraper_limit, max_stocks_list_size, max_surpriver_stocks_num, tickers=None):
+                 dictionary_file_path, stocks_file_path, scraper_limit, max_stocks_list_size, max_surpriver_stocks_num,
+                 prepost, tickers=None):
+        # Queues
         self._q = q
         self._additional_queue = additional_data_queue
         self._console_interface_queue = Queue()
+        self._logger_queue = logger_queue
 
+        # Config
         data_loader = AssistantDataLoader(logger_queue=logger_queue,
                                           create_dictionary=create_dictionary,
                                           create_stocks_list=create_stocks_list,
@@ -23,15 +27,11 @@ class Assistant:
                                           scraper_limit=scraper_limit,
                                           max_stocks_list_size=max_stocks_list_size,
                                           max_surpriver_stocks_num=max_surpriver_stocks_num)
-
         self._tickers, self._surpriver_tickers = data_loader.get_tickers(tickers)
-
-        self._logger_queue = logger_queue
-
         self._max_processes = min([max_processes, len(self._tickers)])
         self._processes = {}
-
         self._interface = Process()
+        self._show_prepost = prepost
 
     def start_monitoring(self, tickers, show_progress=True):
         warnings.filterwarnings("ignore")
@@ -54,7 +54,7 @@ class Assistant:
             period="1d",
             interval="5m",
             group_by='ticker',
-            prepost=True)
+            prepost=self._show_prepost)
 
         if show_progress:
             print_banner('Preparing Trades', 'blue')
@@ -96,9 +96,7 @@ class Assistant:
             while True:
                 inp = input()
 
-                if inp.isnumeric():
-                    self._processes[self._tickers[int(inp)]].show_chart()
-                elif inp in self._processes.keys():
+                if inp in self._processes.keys():
                     self._processes[inp].show_chart()
                 elif inp.lower() == "exit":
                     break
@@ -131,10 +129,10 @@ class Assistant:
                         show_from = int(splitted_inp[1])
                         if show_from >= len(worth_buying):
                             show_from = 0
-                        show_to = int(splitted_inp[2])
+                        show_to = int(splitted_inp[2])+1
                     else:
                         show_from = 0
-                        show_to = int(splitted_inp[1])
+                        show_to = int(splitted_inp[1])+1
 
                     for stock in worth_buying[show_from:show_to]:
                         self._processes[stock].show_chart()

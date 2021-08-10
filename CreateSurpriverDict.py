@@ -59,8 +59,8 @@ class CreateDict:
 
     def process_data(self, stock_prices):
         try:
-            stock_prices = stock_prices.reset_index()
-            stock_prices = stock_prices[['Datetime', 'Open', 'High', 'Low', 'Close', 'Volume']]
+            # stock_prices = stock_prices.reset_index()
+            # stock_prices = stock_prices[['Datetime', 'Open', 'High', 'Low', 'Close', 'Volume']]
 
             stock_prices_list = stock_prices.values.tolist()
             stock_prices_list = stock_prices_list[1:]
@@ -70,8 +70,9 @@ class CreateDict:
             return historical_prices
         except KeyError as e:
             self._logger_queue.put(["ERROR", e])
-            print("[-] Something went wrong. Please try to rerun the application after a few minutes")
-            return ""
+            self._logger_queue.put(["ERROR", stock_prices])
+            print("[-] Failed to create dict for surpriver = Not executing surpriver.")
+            return []
 
     def run(self):
         data = self.get_data()
@@ -81,9 +82,14 @@ class CreateDict:
         self._logger_queue.put(["INFO", " CreateSurpriverDict: Started creating dict"])
         for symbol in self.stocks_list:
             stock_price_data = data[symbol]
+
             bar.next()
 
             stock_price_data = self.process_data(stock_price_data)
+
+            if stock_price_data.empty:
+                return False
+
             if str(stock_price_data) == "":
                 continue
 
@@ -110,3 +116,5 @@ class CreateDict:
         self._logger_queue.put(["INFO", f" CreateSurpriverDict: Dict created length - {len(self.features_dictionary_for_all_symbols)}"])
 
         np.save(self.DICT_PATH, self.features_dictionary_for_all_symbols)
+
+        return True
