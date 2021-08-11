@@ -15,11 +15,11 @@ def main():
     show_prepost = True
 
     create_dictionary = True
-    create_stocks_list = True
+    create_stocks_list = False
 
     max_stocks_list_size = 1200
     dict_path = "surpriver/dictionaries/data"
-    stocks_path = "surpriver/stocks/best_stocks.txt"
+    stocks_path = "stocks.txt"
 
     q = Queue()
     logging_queue = Queue()

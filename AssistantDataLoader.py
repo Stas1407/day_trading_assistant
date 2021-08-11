@@ -124,7 +124,7 @@ class AssistantDataLoader:
                                   data_granularity_minutes=15,
                                   output_format="None",
                                   volatility_filter=0.05,
-                                  stock_list="best_stocks.txt",
+                                  stock_list=self._stocks_file_path,
                                   data_source="yahoo_finance",
                                   logger_queue=self._logger_queue)
 

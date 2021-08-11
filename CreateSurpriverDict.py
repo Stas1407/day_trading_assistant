@@ -6,6 +6,7 @@ import time
 from progress.bar import Bar
 import warnings
 from utilities import print_banner
+import os
 
 class CreateDict:
     def __init__(self, logger_queue, stocks_file_path, dict_path):
@@ -17,7 +18,8 @@ class CreateDict:
         # Config
         self.taEngine = TAEngine(history_to_use=60)     # 60 bars * 15 minutes (DATA_GRANULARITY_MINUTES)
         self.DATA_GRANULARITY_MINUTES = 15
-        self.STOCKS_FILE_PATH = stocks_file_path
+        self.directory_path = str(os.path.dirname(os.path.abspath(__file__)))
+        self.STOCKS_FILE_PATH = self.directory_path + f"/surpriver/stocks/{stocks_file_path}"
         self.DICT_PATH = dict_path
 
         self._logger_queue.put(["INFO", " CreateSurpriverDict: Loading stocks from file..."])
@@ -81,7 +83,10 @@ class CreateDict:
 
         self._logger_queue.put(["INFO", " CreateSurpriverDict: Started creating dict"])
         for symbol in self.stocks_list:
-            stock_price_data = data[symbol]
+            try:
+                stock_price_data = data[symbol]
+            except KeyError as e:
+                print("\n[-] Failed to get data for ", symbol)
 
             bar.next()
 
