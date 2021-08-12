@@ -11,15 +11,16 @@ def main():
     max_processes = 40
     scraper_limit = 25
     max_surpriver_stocks_num = 15
+    run_surpriver = True
 
-    show_prepost = True
+    show_prepost = False
 
     create_dictionary = True
-    create_stocks_list = False
+    create_stocks_list = True
 
     max_stocks_list_size = 1200
     dict_path = "surpriver/dictionaries/data"
-    stocks_path = "stocks.txt"
+    stocks_path = "best_stocks.txt"
 
     q = Queue()
     logging_queue = Queue()
@@ -30,7 +31,7 @@ def main():
 
     a = Assistant(q, logging_queue, additional_data_queue, max_processes, create_dictionary, create_stocks_list,
                   dict_path, stocks_path, scraper_limit, max_stocks_list_size, max_surpriver_stocks_num,
-                  show_prepost, tickers=tickers)
+                  show_prepost, run_surpriver, tickers=tickers)
     a.run()
 
 

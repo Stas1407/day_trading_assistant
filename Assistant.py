@@ -11,7 +11,7 @@ import warnings
 class Assistant:
     def __init__(self, q, logger_queue, additional_data_queue, max_processes, create_dictionary, create_stocks_list,
                  dictionary_file_path, stocks_file_path, scraper_limit, max_stocks_list_size, max_surpriver_stocks_num,
-                 prepost, tickers=None):
+                 prepost, run_surpriver, tickers=None):
         # Queues
         self._q = q
         self._additional_queue = additional_data_queue
@@ -26,7 +26,8 @@ class Assistant:
                                           stocks_file_path=stocks_file_path,
                                           scraper_limit=scraper_limit,
                                           max_stocks_list_size=max_stocks_list_size,
-                                          max_surpriver_stocks_num=max_surpriver_stocks_num)
+                                          max_surpriver_stocks_num=max_surpriver_stocks_num,
+                                          run_surpriver=run_surpriver)
         self._tickers, self._surpriver_tickers = data_loader.get_tickers(tickers)
         self._max_processes = min([max_processes, len(self._tickers)])
         self._processes = {}
@@ -51,7 +52,7 @@ class Assistant:
 
         data_for_chart = yf.download(
             tickers=" ".join(tickers),
-            period="1d",
+            period="30d",
             interval="5m",
             group_by='ticker',
             prepost=self._show_prepost)
@@ -62,8 +63,12 @@ class Assistant:
         if show_progress:
             for ticker in tqdm(tickers):
                 self._logger_queue.put(["DEBUG", f"  Assistant: Starting {ticker}"])
-                s = Stock(ticker, data=data[ticker], data_for_chart=data_for_chart[ticker], queue=self._q,
-                          logger_queue=self._logger_queue, additional_queue=self._additional_queue)
+                try:
+                    s = Stock(ticker, data=data[ticker], data_for_chart=data_for_chart[ticker], queue=self._q,
+                              logger_queue=self._logger_queue, additional_queue=self._additional_queue)
+                except KeyError:
+                    s = Stock(ticker, data=data, data_for_chart=data_for_chart, queue=self._q,
+                              logger_queue=self._logger_queue, additional_queue=self._additional_queue)
                 s.name = ticker
                 s.start()
                 processes[ticker] = s
@@ -71,8 +76,12 @@ class Assistant:
         else:
             for ticker in tickers:
                 self._logger_queue.put(["DEBUG", f"  Assistant: Starting {ticker}"])
-                s = Stock(ticker, data=data[ticker], data_for_chart=data_for_chart[ticker], queue=self._q,
-                          logger_queue=self._logger_queue, additional_queue=self._additional_queue)
+                try:
+                    s = Stock(ticker, data=data[ticker], data_for_chart=data_for_chart[ticker], queue=self._q,
+                              logger_queue=self._logger_queue, additional_queue=self._additional_queue)
+                except KeyError:
+                    s = Stock(ticker, data=data, data_for_chart=data_for_chart, queue=self._q,
+                              logger_queue=self._logger_queue, additional_queue=self._additional_queue)
                 s.name = ticker
                 s.start()
                 processes[ticker] = s

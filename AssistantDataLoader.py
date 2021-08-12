@@ -6,14 +6,14 @@ from bs4 import BeautifulSoup
 from surpriver.detection_engine import Surpriver
 
 class AssistantDataLoader:
-    def __init__(self, logger_queue, create_stocks_list, create_dictionary, dictionary_file_path, stocks_file_path, scraper_limit, max_stocks_list_size, max_surpriver_stocks_num):
+    def __init__(self, logger_queue, create_stocks_list, create_dictionary, dictionary_file_path, stocks_file_path, scraper_limit, max_stocks_list_size, max_surpriver_stocks_num, run_surpriver):
         # Config
         self.create_stocks_list_bool = create_stocks_list
         self.create_dictionary_bool = create_dictionary
         self._scraper_limit = scraper_limit
         self._max_stocks_list_size = max_stocks_list_size
         self._max_surpriver_stocks_num = max_surpriver_stocks_num
-        self._run_surpriver = True
+        self._run_surpriver = run_surpriver
 
         self._stocks_file_path = stocks_file_path
         self._dictionary_file_path = dictionary_file_path
@@ -45,8 +45,7 @@ class AssistantDataLoader:
 
     def create_surpriver_dictionary(self):
         if not CreateDict(self._logger_queue, self._stocks_file_path, self._dictionary_file_path).run():
-            # self._run_surpriver = False
-            pass
+            self._run_surpriver = False
 
     def create_stocks_list(self):
         response = requests.get(self._stock_screener_url)
@@ -65,7 +64,7 @@ class AssistantDataLoader:
 
         self._logger_queue.put(["DEBUG", f" AssistantDataLoader: Writing to file"])
 
-        with open(self._stocks_file_path, "w") as f:
+        with open("surpriver/stocks/"+self._stocks_file_path, "w") as f:
             for o in data:
                 f.write(f"{o['symbol']}\n")
             f.close()
@@ -136,7 +135,7 @@ class AssistantDataLoader:
 
             tickers.extend([i[0] for i in surpriver_tickers])
         else:
-            surpriver_tickers = [[]]
+            surpriver_tickers = []
 
         self._logger_queue.put(["INFO", " AssistantDataLoader: Running scraper"])
         scraper_tickers = self.scraper()

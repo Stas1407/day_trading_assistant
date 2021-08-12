@@ -20,8 +20,9 @@ def handle_console_interface(logger_queue, q, max_processes, surpriver_tickers, 
 
     surpriver_tickers_dict = {}
 
-    for symbol, prediction in surpriver_tickers:
-        surpriver_tickers_dict[symbol] = prediction
+    if len(surpriver_tickers) > 0:
+        for symbol, prediction in surpriver_tickers:
+            surpriver_tickers_dict[symbol] = prediction
 
     table_data = [["Ticker", "state", "Profit", "Near support", "Price", "Support", "Resistance", "Volatility", "Source"]]
     worth_attention = []
@@ -53,7 +54,7 @@ def handle_console_interface(logger_queue, q, max_processes, surpriver_tickers, 
             worth_attention.append(stock["ticker"])
 
             if stock["ticker"] in surpriver_tickers_dict.keys():
-                source = "Surpriver (" + str(surpriver_tickers_dict[stock["ticker"]]) + ") "
+                source = "Surpriver (" + str(round(surpriver_tickers_dict[stock["ticker"]], 2)) + ") "
 
             if stock['profit'] == "Unknown":
                 table_data.append([stock["ticker"],
@@ -85,7 +86,7 @@ def handle_console_interface(logger_queue, q, max_processes, surpriver_tickers, 
             table_data = sorted(table_data, key=lambda x: x[1])
             table = AsciiTable(table_data)
             print(table.table)
-            print("Ticker (type exit to exit): ", end="")
+            print("Ticker (help for help menu): ", end="")
 
             count = 0
             table_data = [["Ticker", "State", "Profit", "Near support", "Price", "Support", "Resistance", "Volatility", "Source"]]

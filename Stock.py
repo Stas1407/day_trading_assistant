@@ -35,11 +35,16 @@ class Stock(Process):
         self._df['Date'] = self._df['Date'].apply(mpl_dates.date2num)
         self._df = self._df.loc[:, ['Date', 'Open', 'High', 'Low', 'Close']]
 
+        # Data in 5 min intervals for analysis
+        self._df5 = data_for_chart
+        self._df5['Date'] = pd.to_datetime(self._df5.index)
+        self._df5['Date'] = self._df5['Date'].apply(mpl_dates.date2num)
+        self._df5 = self._df5.loc[:, ['Date', 'Open', 'High', 'Low', 'Close']]
+
         # Data for chart
-        self._df_for_chart = data_for_chart
-        self._df_for_chart['Date'] = pd.to_datetime(self._df_for_chart.index)
-        self._df_for_chart['Date'] = self._df_for_chart['Date'].apply(mpl_dates.date2num)
-        self._df_for_chart = self._df_for_chart.loc[:, ['Date', 'Open', 'High', 'Low', 'Close']]
+        self._df_for_chart = self._df5.last("1d")
+        self._logger_queue.put(["DEBUG", "df for chart: "])
+        self._logger_queue.put(["DEBUG", self._df_for_chart])
 
         # Variables used by class
         self._levels = []
@@ -67,14 +72,14 @@ class Stock(Process):
     def get_data(self):
         self._get_data_event.set()
 
-    def _is_support(self, i):
-        support = self._df['Low'][i] < self._df['Low'][i - 1] < self._df['Low'][i - 2] and \
-                  self._df['Low'][i] < self._df['Low'][i + 1] < self._df['Low'][i + 2]
+    def _is_support(self, i, df):
+        support = df['Low'][i] < df['Low'][i - 1] < df['Low'][i - 2] and \
+                  df['Low'][i] < df['Low'][i + 1] < df['Low'][i + 2]
         return support
 
-    def _is_resistance(self, i):
-        resistance = self._df['High'][i] > self._df['High'][i - 1] > self._df['High'][i - 2] and \
-                     self._df['High'][i] > self._df['Close'][i + 1] > self._df['Close'][i + 2]
+    def _is_resistance(self, i, df):
+        resistance = df['High'][i] > df['High'][i - 1] > df['High'][i - 2] and \
+                     df['High'][i] > df['Close'][i + 1] > df['Close'][i + 2]
         return resistance
 
     def _is_far_from_level(self, l):
@@ -82,14 +87,27 @@ class Stock(Process):
 
     def _find_levels(self, df):
         for i in range(2, df.shape[0] - 2):
-            if self._is_support(i):
+            if self._is_support(i, df):
                 l = df['Low'][i]
                 if self._is_far_from_level(l):
                     self._levels.append((i, l))
-            elif self._is_resistance(i):
+            elif self._is_resistance(i, df):
                 l = df['High'][i]
                 if self._is_far_from_level(l):
                     self._levels.append((i, l))
+
+    def _get_sma(self, prices, rate):
+        return prices.rolling(rate).mean()
+
+    def _get_bollinger_bands(self, prices, rate=20):
+        sma = self._get_sma(prices, rate)
+        std = prices.rolling(rate).std()
+        bollinger_up = sma + std * 2
+        bollinger_down = sma - std * 2
+        self._logger_queue.put(["DEBUG", bollinger_up])
+        self._logger_queue.put(["DEBUG", "------------"])
+        self._logger_queue.put(["DEBUG", bollinger_down])
+        return bollinger_up, bollinger_down
 
     def get_current_price(self):
         ticker = yfinance.Ticker(self.ticker)
@@ -114,6 +132,8 @@ class Stock(Process):
 
     def check_if_worth_attention(self):
         self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Checking if worth buying"])
+
+        # bollinger_up, bollinger_down = self._get_bollinger_bands(self._df5["Close"])
 
         current_price = self.get_current_price()
 
@@ -172,6 +192,8 @@ class Stock(Process):
 
         webbrowser.get(self._chrome_path).open(self._url)
 
+        bollinger_up, bollinger_down = self._get_bollinger_bands(self._df5["Close"])
+
         fig, ax = plt.subplots()
 
         candlestick_ohlc(ax, self._df_for_chart.values, width=candle_width,
@@ -181,6 +203,9 @@ class Stock(Process):
         date_format.set_tzinfo(timezone('America/New_york'))
         ax.xaxis.set_major_formatter(date_format)
         ax.xaxis.set_major_locator(mpl_dates.MinuteLocator((0, 30)))
+
+        ax.plot(bollinger_up.last("1d"), label="Bollinger Up", c="blue")
+        ax.plot(bollinger_down.last("1d"), label="Bollinger Down", c="blue")
 
         fig.autofmt_xdate()
         fig.tight_layout()
@@ -251,7 +276,7 @@ class Stock(Process):
 
     def run(self):
         self._find_levels(self._df)
-        self._find_levels(self._df_for_chart)
+        self._find_levels(self._df5)
 
         self._logger_queue.put(["INFO", f"  Stock {self.ticker} - levels: {self.levels}"])
 
