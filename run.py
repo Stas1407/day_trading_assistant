@@ -13,7 +13,7 @@ def main():
     max_surpriver_stocks_num = 15
     run_surpriver = True
 
-    show_prepost = False
+    show_prepost = True
 
     create_dictionary = False
     create_stocks_list = False

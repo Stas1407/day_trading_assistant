@@ -7,6 +7,7 @@ from progress.bar import Bar
 import warnings
 from utilities import print_banner
 import os
+import gc
 
 class CreateDict:
     def __init__(self, logger_queue, stocks_file_path, dict_path):
@@ -86,6 +87,7 @@ class CreateDict:
             try:
                 stock_price_data = data[symbol]
             except KeyError as e:
+                stock_price_data = []
                 print("\n[-] Failed to get data for ", symbol)
 
             bar.next()
@@ -124,5 +126,6 @@ class CreateDict:
 
         del self.features_dictionary_for_all_symbols
         del data
+        gc.collect()
 
         return True

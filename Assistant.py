@@ -7,6 +7,7 @@ from AssistantDataLoader import AssistantDataLoader
 import yfinance as yf
 from terminaltables import AsciiTable
 import warnings
+import gc
 
 class Assistant:
     def __init__(self, q, logger_queue, additional_data_queue, max_processes, create_dictionary, create_stocks_list,
@@ -34,6 +35,9 @@ class Assistant:
         self._interface = Process()
         self._show_prepost = prepost
 
+        del data_loader
+        gc.collect()
+
     def start_monitoring(self, tickers, show_progress=True):
         warnings.filterwarnings("ignore")
         self._logger_queue.put(["INFO", "  Assistant: Starting monitoring given tickers"])
@@ -57,38 +61,34 @@ class Assistant:
             group_by='ticker',
             prepost=self._show_prepost)
 
+        data.to_pickle("data.pkl")
+        data_for_chart.to_pickle("data_for_chart.pkl")
+
+        del data
+        del data_for_chart
+        gc.collect()
+
         if show_progress:
-            print_banner('Preparing Trades', 'blue')
+            print_banner('Preparing Trades', 'magenta')
 
         if show_progress:
             for ticker in tqdm(tickers):
                 self._logger_queue.put(["DEBUG", f"  Assistant: Starting {ticker}"])
-                try:
-                    s = Stock(ticker, data=data[ticker], data_for_chart=data_for_chart[ticker], queue=self._q,
-                              logger_queue=self._logger_queue, additional_queue=self._additional_queue)
-                except KeyError:
-                    s = Stock(ticker, data=data, data_for_chart=data_for_chart, queue=self._q,
-                              logger_queue=self._logger_queue, additional_queue=self._additional_queue)
+                s = Stock(ticker, queue=self._q, logger_queue=self._logger_queue, additional_queue=self._additional_queue)
                 s.name = ticker
                 s.start()
                 processes[ticker] = s
                 self._logger_queue.put(["DEBUG", f"  Assistant: {ticker} started"])
+                gc.collect()
         else:
             for ticker in tickers:
                 self._logger_queue.put(["DEBUG", f"  Assistant: Starting {ticker}"])
-                try:
-                    s = Stock(ticker, data=data[ticker], data_for_chart=data_for_chart[ticker], queue=self._q,
-                              logger_queue=self._logger_queue, additional_queue=self._additional_queue)
-                except KeyError:
-                    s = Stock(ticker, data=data, data_for_chart=data_for_chart, queue=self._q,
-                              logger_queue=self._logger_queue, additional_queue=self._additional_queue)
+                s = Stock(ticker, queue=self._q, logger_queue=self._logger_queue, additional_queue=self._additional_queue)
                 s.name = ticker
                 s.start()
                 processes[ticker] = s
                 self._logger_queue.put(["DEBUG", f"  Assistant: {ticker} started"])
-
-        del data
-        del data_for_chart
+                gc.collect()
 
         return processes
 
@@ -108,14 +108,24 @@ class Assistant:
             while True:
                 inp = input()
 
-                if inp in self._processes.keys():
-                    self._processes[inp].show_chart()
+                if inp in self._processes.keys() or inp.split(" ")[0] in self._processes.keys():
+                    if inp.split(" ")[-1] == "window":
+                        self._processes[inp.split(" ")[0]].show_chart(window=True)
+                    else:
+                        self._processes[inp].show_chart(window=False)
                 elif inp.lower() == "exit":
                     break
                 elif inp[0] == '+' and not inp.isnumeric():
-                    self._processes.update(self.start_monitoring([inp[1:]], show_progress=False))
-                    self._tickers.append(inp[1:])
-                    self._q.put({"max_processes": "+1"})
+                    if len(inp) > 0:
+                        symbols = inp.replace("+", "").split(" ")
+                        for symbol in symbols:
+                            if symbol in self._processes.keys():
+                                symbols.remove(symbol)
+                                print(f"[-] {symbol} is already added")
+                        if len(symbols) > 0:
+                            self._processes.update(self.start_monitoring(symbols, show_progress=False))
+                            self._tickers.append(inp[1:])
+                            self._q.put({"max_processes": "+1"})
                 elif inp == "surpriver":
                     table_data = []
                     for ticker, prediction in self._surpriver_tickers:
@@ -150,12 +160,13 @@ class Assistant:
                         self._processes[stock].show_chart()
                 elif inp == "help" or inp == "?":
                     print("Commands:")
-                    print("\t <TICKER>      = Shows chart of given ticker")
-                    print("\t +<TICKER>     = Adds ticker for analysis")
-                    print("\t surpriver     = Shows stocks picked by surpriver")
-                    print("\t show <a> <b>  = Shows charts for stocks from a to b that are worth buying\n"+
-                                              "ie. show 0 5  = Show charts for stocks on positions from 0 to 5")
-                    print("\t exit        = Close day trading assistant")
+                    print("\t <TICKER>                      = Shows chart of given ticker")
+                    print("\t <TICKER> window               = Shows chart of given ticker with another chart window")
+                    print("\t +<TICKER> <TICKER2> ...       = Adds tickers for analysis")
+                    print("\t surpriver                     = Shows stocks picked by surpriver")
+                    print("\t show <a> <b>                  = Shows charts for stocks from a to b that are worth buying\n"+
+                                                            "ie. show 0 5  = Show charts for stocks on positions from 0 to 5")
+                    print("\t exit                          = Close day trading assistant")
                 else:
                     print("[-] Wrong ticker")
 

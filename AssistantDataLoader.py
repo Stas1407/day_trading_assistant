@@ -4,6 +4,7 @@ import json
 from CreateSurpriverDict import CreateDict
 from bs4 import BeautifulSoup
 from surpriver.detection_engine import Surpriver
+import gc
 
 class AssistantDataLoader:
     def __init__(self, logger_queue, create_stocks_list, create_dictionary, dictionary_file_path, stocks_file_path, scraper_limit, max_stocks_list_size, max_surpriver_stocks_num, run_surpriver):
@@ -147,5 +148,7 @@ class AssistantDataLoader:
         self._logger_queue.put(["INFO", f"AssistantDataLoader: Scraper returned {len(scraper_tickers)} tickers"])
 
         tickers.extend(scraper_tickers)
+
+        gc.collect()
 
         return tickers, surpriver_tickers

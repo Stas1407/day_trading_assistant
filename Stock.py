@@ -9,9 +9,10 @@ from multiprocessing import Process, Event
 import time
 import schedule
 import webbrowser
+import gc
 
 class Stock(Process):
-    def __init__(self, ticker, data, data_for_chart, queue, logger_queue, additional_queue):
+    def __init__(self, ticker, queue, logger_queue, additional_queue):
         Process.__init__(self)
 
         # Config
@@ -28,15 +29,24 @@ class Stock(Process):
         self._stop_event = Event()
         self._get_data_event = Event()
         self._show_chart_event = Event()
+        self._show_chart_event_without_window = Event()
 
         # Data for finding levels (support and resistance)
-        self._df = data
+        try:
+            self._df = pd.read_pickle("data.pkl")[ticker]
+        except KeyError:
+            self._df = pd.read_pickle("data.pkl")
+
         self._df['Date'] = pd.to_datetime(self._df.index)
         self._df['Date'] = self._df['Date'].apply(mpl_dates.date2num)
         self._df = self._df.loc[:, ['Date', 'Open', 'High', 'Low', 'Close']]
 
         # Data in 5 min intervals for analysis
-        self._df5 = data_for_chart
+        try:
+            self._df5 = pd.read_pickle("data_for_chart.pkl")[ticker]
+        except KeyError:
+            self._df5 = pd.read_pickle("data_for_chart.pkl")
+
         self._df5['Date'] = pd.to_datetime(self._df5.index)
         self._df5['Date'] = self._df5['Date'].apply(mpl_dates.date2num)
         self._df5 = self._df5.loc[:, ['Date', 'Open', 'High', 'Low', 'Close']]
@@ -48,6 +58,8 @@ class Stock(Process):
         self._levels = []
         self.__ticker = ticker
         self.__volatility = np.mean(self._df['High'] - self._df['Low'])
+
+        gc.collect()
 
     @property
     def ticker(self):
@@ -64,8 +76,10 @@ class Stock(Process):
     def stop(self):
         self._stop_event.set()
 
-    def show_chart(self):
+    def show_chart(self, window):
         self._show_chart_event.set()
+        if not window:
+            self._show_chart_event_without_window.set()
 
     def get_data(self):
         self._get_data_event.set()
@@ -102,9 +116,6 @@ class Stock(Process):
         std = prices.rolling(rate).std()
         bollinger_up = sma + std * 2
         bollinger_down = sma - std * 2
-        self._logger_queue.put(["DEBUG", bollinger_up])
-        self._logger_queue.put(["DEBUG", "------------"])
-        self._logger_queue.put(["DEBUG", bollinger_down])
         return bollinger_up, bollinger_down
 
     def get_current_price(self):
@@ -165,7 +176,7 @@ class Stock(Process):
                 'strategy': "support & resistance"}
 
         # Low volatility filter
-        if self.volatility/current_price < 0.05:
+        if self.volatility/current_price < 0.1:
             self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Too low volatility"])
             info['state'] = "watch"
             self._q.put(info)
@@ -207,52 +218,53 @@ class Stock(Process):
 
         webbrowser.get(self._chrome_path).open(self._url)
 
-        bollinger_up, bollinger_down = self._get_bollinger_bands(self._df5["Close"])
+        if not self._show_chart_event_without_window.is_set():
+            bollinger_up, bollinger_down = self._get_bollinger_bands(self._df5["Close"])
 
-        fig, ax = plt.subplots()
+            fig, ax = plt.subplots()
 
-        candlestick_ohlc(ax, self._df_for_chart.values, width=candle_width,
-                         colorup='green', colordown='red', alpha=0.8)
+            candlestick_ohlc(ax, self._df_for_chart.values, width=candle_width,
+                             colorup='green', colordown='red', alpha=0.8)
 
-        date_format = mpl_dates.DateFormatter(dformat)
-        date_format.set_tzinfo(timezone('America/New_york'))
-        ax.xaxis.set_major_formatter(date_format)
-        ax.xaxis.set_major_locator(mpl_dates.MinuteLocator((0, 30)))
+            date_format = mpl_dates.DateFormatter(dformat)
+            date_format.set_tzinfo(timezone('America/New_york'))
+            ax.xaxis.set_major_formatter(date_format)
+            ax.xaxis.set_major_locator(mpl_dates.MinuteLocator((0, 30)))
 
-        ax.plot(bollinger_up.last("1d"), label="Bollinger Up", c="blue")
-        ax.plot(bollinger_down.last("1d"), label="Bollinger Down", c="blue")
+            ax.plot(bollinger_up.last("1d"), label="Bollinger Up", c="blue")
+            ax.plot(bollinger_down.last("1d"), label="Bollinger Down", c="blue")
 
-        fig.autofmt_xdate()
-        fig.tight_layout()
-        fig.set_size_inches(10.5, 6.5)
+            fig.autofmt_xdate()
+            fig.tight_layout()
+            fig.set_size_inches(10.5, 6.5)
 
-        try:
-            t = str(self._df_for_chart.index[0])
-        except Exception as e:
-            print("\n[-] Something went wrong. Check logs for details")
-            print("Try running with --prepost False  (It disables pre and post market data)")          # TODO
-            self._logger_queue.put(["ERROR", f" Stock {self.ticker} - {e} while showing chart"])
-            self._logger_queue.put(["ERROR", f" Stock {self.ticker} - {self._df_for_chart}"])
-            self._logger_queue.put(["ERROR", f" Stock {self.ticker} - length: {len(self._df_for_chart)}"])
+            try:
+                t = str(self._df_for_chart.index[0])
+            except Exception as e:
+                print("\n[-] Something went wrong. Check logs for details")
+                print("Try running with --prepost False  (It disables pre and post market data)")          # TODO
+                self._logger_queue.put(["ERROR", f" Stock {self.ticker} - {e} while showing chart"])
+                self._logger_queue.put(["ERROR", f" Stock {self.ticker} - {self._df_for_chart}"])
+                self._logger_queue.put(["ERROR", f" Stock {self.ticker} - length: {len(self._df_for_chart)}"])
 
-            return
+                return
 
-        fig.suptitle(self.ticker + " " + t, fontsize=16, y=0.98)
-        fig.subplots_adjust(top=0.8, left=0.08)
-        current_price = self.get_current_price()
+            fig.suptitle(self.ticker + " " + t, fontsize=16, y=0.98)
+            fig.subplots_adjust(top=0.8, left=0.08)
+            current_price = self.get_current_price()
 
-        if show_levels:
-            for level in self._levels:
-                if current_price + 5 * self.__volatility > level[1] > current_price - 5 * self.__volatility:
-                    if level[1] > current_price:
-                        color = "red"
-                    else:
-                        color = "green"
-                    plt.hlines(level[1], xmin=self._df_for_chart['Date'][0],
-                               xmax=max(self._df_for_chart['Date']), colors=color)
-                    plt.text(self._df_for_chart['Date'][0], level[1]+0.01, round(level[1], 2), ha="left", va='center')
+            if show_levels:
+                for level in self._levels:
+                    if current_price + 5 * self.__volatility > level[1] > current_price - 5 * self.__volatility:
+                        if level[1] > current_price:
+                            color = "red"
+                        else:
+                            color = "green"
+                        plt.hlines(level[1], xmin=self._df_for_chart['Date'][0],
+                                   xmax=max(self._df_for_chart['Date']), colors=color)
+                        plt.text(self._df_for_chart['Date'][0], level[1]+0.01, round(level[1], 2), ha="left", va='center')
 
-        plt.show()
+            plt.show()
 
     def __watch(self):
         self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Started watching"])

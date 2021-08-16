@@ -12,12 +12,13 @@
 # 11. Test surpriver on full list of stocks
 # 12. Add checking bollinger band to worth_attention
 #     - Add filtering volatility (in percents)
-13. Improve memory management
-    a) Change the system of loading data for day trading assitant
-        - Download the data from yahoo
-        - Save it to file
-        - Remove data so that child processes won't copy it
-        - Every child process will read it's data from file
+# 13. Improve memory management
+#     a) Change the system of loading data for day trading assitant
+#         - Download the data from yahoo
+#         - Save it to file
+#         - Remove data so that child processes won't copy it
+#         - Every child process will read it's data from file
+14. Fix adding symbols
 14. Remove unnecesary log statements
-15. Sort trades by profit
+# 15. Sort trades by profit
 16. Add argparser
