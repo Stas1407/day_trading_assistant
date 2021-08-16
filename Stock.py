@@ -43,8 +43,6 @@ class Stock(Process):
 
         # Data for chart
         self._df_for_chart = self._df5.last("1d")
-        self._logger_queue.put(["DEBUG", "df for chart: "])
-        self._logger_queue.put(["DEBUG", self._df_for_chart])
 
         # Variables used by class
         self._levels = []
@@ -133,7 +131,7 @@ class Stock(Process):
     def check_if_worth_attention(self):
         self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Checking if worth buying"])
 
-        # bollinger_up, bollinger_down = self._get_bollinger_bands(self._df5["Close"])
+        bollinger_up, bollinger_down = self._get_bollinger_bands(self._df5["Close"])
 
         current_price = self.get_current_price()
 
@@ -163,7 +161,15 @@ class Stock(Process):
                 'support': support[1],
                 'profit': profit,
                 'is_near_support': is_near_support,
-                'volatility': round(float(self.volatility), 3)}
+                'volatility': round(float(self.volatility), 3),
+                'strategy': "support & resistance"}
+
+        # Low volatility filter
+        if self.volatility/current_price < 0.05:
+            self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Too low volatility"])
+            info['state'] = "watch"
+            self._q.put(info)
+            return
 
         if support[0] == 0 and support[1] == 0:
             self._logger_queue.put(["WARNING", f"  Stock {self.ticker}: Skipping, resistance and support not found"])
@@ -184,6 +190,15 @@ class Stock(Process):
         else:
             self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Not worth attention. Keeping an eye on this one."])
             info['state'] = 'watch'
+
+        if abs(current_price-bollinger_down[-1]) < self.volatility*0.1:
+            self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Near bollinger band"])
+            if info['state'] == "worth attention":
+                info['strategy'] += " + bollinger bands"
+            else:
+                info['state'] = "worth attention"
+                info['strategy'] = "bollinger bands"
+                info['profit'] = bollinger_up[-1]
 
         self._q.put(info)
 
@@ -276,6 +291,8 @@ class Stock(Process):
 
     def run(self):
         self._find_levels(self._df)
+        del self._df
+
         self._find_levels(self._df5)
 
         self._logger_queue.put(["INFO", f"  Stock {self.ticker} - levels: {self.levels}"])

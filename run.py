@@ -15,12 +15,16 @@ def main():
 
     show_prepost = False
 
-    create_dictionary = True
-    create_stocks_list = True
+    create_dictionary = False
+    create_stocks_list = False
 
     max_stocks_list_size = 1200
     dict_path = "surpriver/dictionaries/data"
     stocks_path = "best_stocks.txt"
+
+    if stocks_path == "stocks.txt":
+        print("Cannot overwrite this file")
+        return
 
     q = Queue()
     logging_queue = Queue()

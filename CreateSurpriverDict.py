@@ -122,4 +122,7 @@ class CreateDict:
 
         np.save(self.DICT_PATH, self.features_dictionary_for_all_symbols)
 
+        del self.features_dictionary_for_all_symbols
+        del data
+
         return True

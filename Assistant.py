@@ -87,6 +87,9 @@ class Assistant:
                 processes[ticker] = s
                 self._logger_queue.put(["DEBUG", f"  Assistant: {ticker} started"])
 
+        del data
+        del data_for_chart
+
         return processes
 
     def start_console_interface(self):
@@ -138,10 +141,10 @@ class Assistant:
                         show_from = int(splitted_inp[1])
                         if show_from >= len(worth_buying):
                             show_from = 0
-                        show_to = int(splitted_inp[2])+1
+                        show_to = int(splitted_inp[2])
                     else:
                         show_from = 0
-                        show_to = int(splitted_inp[1])+1
+                        show_to = int(splitted_inp[1])
 
                     for stock in worth_buying[show_from:show_to]:
                         self._processes[stock].show_chart()

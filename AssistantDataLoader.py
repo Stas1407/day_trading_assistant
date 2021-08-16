@@ -134,6 +134,7 @@ class AssistantDataLoader:
             self._logger_queue.put(["INFO", f"AssistantDataLoader: Surpriver returned {len(surpriver_tickers)} tickers"])
 
             tickers.extend([i[0] for i in surpriver_tickers])
+            del surpriver
         else:
             surpriver_tickers = []
 

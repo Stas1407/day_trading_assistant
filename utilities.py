@@ -24,7 +24,7 @@ def handle_console_interface(logger_queue, q, max_processes, surpriver_tickers, 
         for symbol, prediction in surpriver_tickers:
             surpriver_tickers_dict[symbol] = prediction
 
-    table_data = [["Ticker", "state", "Profit", "Near support", "Price", "Support", "Resistance", "Volatility", "Source"]]
+    table_data = []
     worth_attention = []
     worth_buying = []
 
@@ -65,7 +65,8 @@ def handle_console_interface(logger_queue, q, max_processes, surpriver_tickers, 
                                    round(stock["support"], 2),
                                    stock["resistance"],
                                    stock["volatility"],
-                                   source])
+                                   source,
+                                   stock["strategy"]])
             else:
                 table_data.append([stock["ticker"],
                                    stock["state"],
@@ -75,7 +76,8 @@ def handle_console_interface(logger_queue, q, max_processes, surpriver_tickers, 
                                    round(stock["support"], 2),
                                    round(stock["resistance"], 2),
                                    stock["volatility"],
-                                   source])
+                                   source,
+                                   stock["strategy"]])
             count += 1
         else:
             count += 1
@@ -83,12 +85,16 @@ def handle_console_interface(logger_queue, q, max_processes, surpriver_tickers, 
         logger_queue.put(["DEBUG", f"  Assistant-interface: Max_processes: {max_processes}, count: {count}"])
         if count == max_processes:
             print_banner('Trades for today', "yellow")
-            table_data = sorted(table_data, key=lambda x: x[1])
+
+            table_data = sorted(table_data, key=lambda x: int(x[2][:2].strip()), reverse=True)
+            table_data = [["Ticker", "State", "Profit", "Near support", "Price", "Support", "Resistance", "Volatility",
+                           "Source", "Strategy"]] + table_data
+
             table = AsciiTable(table_data)
             print(table.table)
             print("Ticker (help for help menu): ", end="")
 
             count = 0
-            table_data = [["Ticker", "State", "Profit", "Near support", "Price", "Support", "Resistance", "Volatility", "Source"]]
+            table_data = []
             worth_buying = worth_attention.copy()
             worth_attention.clear()
