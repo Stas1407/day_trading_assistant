@@ -50,7 +50,7 @@ def handle_console_interface(logger_queue, q, max_processes, surpriver_tickers, 
         elif stock['state'] == "skip":
             max_processes -= 1
         elif stock['state'] == "worth attention":
-            source = "Web scraper"
+            source = "Web"
             worth_attention.append(stock["ticker"])
 
             if stock["ticker"] in surpriver_tickers_dict.keys():

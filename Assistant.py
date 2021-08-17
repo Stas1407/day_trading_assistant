@@ -109,19 +109,25 @@ class Assistant:
                 inp = input()
 
                 if inp in self._processes.keys() or inp.split(" ")[0] in self._processes.keys():
-                    if inp.split(" ")[-1] == "window":
+                    if inp.split(" ")[-1] == "window" and inp.split(" ")[0] in self._processes.keys():
                         self._processes[inp.split(" ")[0]].show_chart(window=True)
-                    else:
+                    elif inp in self._processes.keys():
                         self._processes[inp].show_chart(window=False)
+                    else:
+                        print("[-] Wrong command")
                 elif inp.lower() == "exit":
                     break
-                elif inp[0] == '+' and not inp.isnumeric():
-                    if len(inp) > 0:
-                        symbols = inp.replace("+", "").split(" ")
-                        for symbol in symbols:
-                            if symbol in self._processes.keys():
-                                symbols.remove(symbol)
+                elif len(inp) > 0 and inp[0] == '+' and not inp.isnumeric():
+                    if len(inp) > 1:
+                        symbols_tmp = inp.replace("+", "").split(" ")
+                        symbols = []
+
+                        for symbol in symbols_tmp:
+                            if symbol.upper() not in self._processes.keys():
+                                symbols.append(symbol)
+                            else:
                                 print(f"[-] {symbol} is already added")
+
                         if len(symbols) > 0:
                             self._processes.update(self.start_monitoring(symbols, show_progress=False))
                             self._tickers.append(inp[1:])
@@ -152,9 +158,13 @@ class Assistant:
                         if show_from >= len(worth_buying):
                             show_from = 0
                         show_to = int(splitted_inp[2])
-                    else:
+                    elif len(splitted_inp) == 2:
                         show_from = 0
                         show_to = int(splitted_inp[1])
+                    else:
+                        show_to = 0
+                        show_from = 0
+                        print("[-] Wrong command")
 
                     for stock in worth_buying[show_from:show_to]:
                         self._processes[stock].show_chart()

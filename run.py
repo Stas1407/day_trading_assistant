@@ -8,12 +8,12 @@ def main():
 
     tickers = []
 
-    max_processes = 40
-    scraper_limit = 25
-    max_surpriver_stocks_num = 15
-    run_surpriver = True
+    max_processes = 10
+    scraper_limit = 10
+    max_surpriver_stocks_num = 0
+    run_surpriver = False
 
-    show_prepost = True
+    show_prepost = False
 
     create_dictionary = False
     create_stocks_list = False

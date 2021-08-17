@@ -172,7 +172,7 @@ class Stock(Process):
                 'support': support[1],
                 'profit': profit,
                 'is_near_support': is_near_support,
-                'volatility': round(float(self.volatility), 3),
+                'volatility': round(float(self.volatility)/current_price, 3),
                 'strategy': "support & resistance"}
 
         # Low volatility filter

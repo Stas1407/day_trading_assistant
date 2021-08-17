@@ -18,7 +18,7 @@
 #         - Save it to file
 #         - Remove data so that child processes won't copy it
 #         - Every child process will read it's data from file
-14. Fix adding symbols
+# 14. Fix adding symbols
 14. Remove unnecesary log statements
 # 15. Sort trades by profit
 16. Add argparser
