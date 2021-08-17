@@ -5,6 +5,9 @@ from CreateSurpriverDict import CreateDict
 from bs4 import BeautifulSoup
 from surpriver.detection_engine import Surpriver
 import gc
+from yahoo_fin import stock_info
+from pandas_datareader import data as pandas_data
+import yfinance as yf
 
 class AssistantDataLoader:
     def __init__(self, logger_queue, create_stocks_list, create_dictionary, dictionary_file_path, stocks_file_path, scraper_limit, max_stocks_list_size, max_surpriver_stocks_num, run_surpriver):
@@ -78,10 +81,8 @@ class AssistantDataLoader:
 
         for row in s.find_all('tr'):
             ticker = row.find("th")
-            labels = row.find_all("td")
             if len(ticker.text) <= 4:
-                volume = labels[1]
-                tab.append([ticker.text, volume.text])
+                tab.append(ticker.text)
 
         l = len(tab)
         self._logger_queue.put(["DEBUG", f" AssistantDataLoader: Got {len(tab)} tickers from 1st source"])
@@ -91,17 +92,66 @@ class AssistantDataLoader:
 
         for row in s2.find_all('tr'):
             ticker = row.find('th').text.strip()
-            volume = row.find_all('td')
             if len(ticker) <= 4:
-                volume = volume[1].text.strip().replace(",", "")
-                tab.append([ticker, volume])
+                tab.append(ticker)
 
         self._logger_queue.put(["DEBUG", f" AssistantDataLoader: Got {len(tab)-l} tickers from 2nd source"])
 
-        tab = sorted(tab, key=lambda x: int(x[1]), reverse=True)
-        tab = [i[0] for i in tab]
-
         return tab
+
+    def get_most_volatile_stocks(self):
+        self._logger_queue.put(["INFO", " AssistantDataLoader: Running scraper"])
+        tickers = self.scraper()
+
+        self._logger_queue.put(["INFO", f" AssistantDataLoader: Got {len(tickers)} tickers from scraper"])
+        
+        result = []
+
+        most_active = stock_info.get_day_most_active()["Symbol"].values.tolist()
+        gainers = stock_info.get_day_gainers()["Symbol"].values.tolist()
+
+        self._logger_queue.put(["INFO", f" AssistantDataLoader: Got {len(most_active)} tickers from most active"])
+        self._logger_queue.put(["INFO", f" AssistantDataLoader: Got {len(gainers)} tickers from biggest gainers"])
+        
+        tickers.extend(most_active)
+        tickers.extend(gainers)
+
+        data = yf.download(
+            tickers=" ".join(tickers),
+            period="2d",
+            interval="5m",
+            group_by='ticker')
+
+        for ticker in tickers:
+            ticker_data = data[ticker]
+            current_price = ticker_data["Close"][0]
+
+            if current_price > 20:
+                continue
+
+            print(ticker)
+            try:
+                market_cap = int(pandas_data.get_quote_yahoo(ticker)["marketCap"])
+            except KeyError:
+                market_cap = 0
+                print("[-] Market cap not found")
+
+            if market_cap > 100000000:
+                continue
+
+            open_close_prices = [(i[1]["Close"][0], i[1]["Close"][-1]) for i in ticker_data.groupby(ticker_data.index.day)]
+            gap = open_close_prices[1][0] - open_close_prices[0][1]
+
+            if gap < 0 or gap/current_price < 0.05:
+                continue
+
+            volume = yf.Ticker(ticker).info["averageVolume"]
+            if volume < 20000:
+                continue
+            
+            result.append(ticker)
+        
+        return result
 
     def get_tickers(self, tickers):
         if tickers is None:
@@ -134,13 +184,18 @@ class AssistantDataLoader:
             self._logger_queue.put(["DEBUG", f" AssistantDataLoader: Surpriver returned: {surpriver_tickers}"])
             self._logger_queue.put(["INFO", f"AssistantDataLoader: Surpriver returned {len(surpriver_tickers)} tickers"])
 
+            surpriver_tickers = filter(lambda i: i[1] < 0, surpriver_tickers)
+
+            self._logger_queue.put(["DEBUG", f" AssistantDataLoader: After filtering surpriver tickers: {surpriver_tickers}"])
+            self._logger_queue.put(["INFO", f"AssistantDataLoader: After filtering surpriver: {len(surpriver_tickers)} tickers"])
+
             tickers.extend([i[0] for i in surpriver_tickers])
             del surpriver
         else:
             surpriver_tickers = []
 
-        self._logger_queue.put(["INFO", " AssistantDataLoader: Running scraper"])
-        scraper_tickers = self.scraper()
+        self._logger_queue.put(["INFO", " AssistantDataLoader: Getting most volatile stocks"])
+        scraper_tickers = self.get_most_volatile_stocks()
         limit_left = self._scraper_limit + self._max_surpriver_stocks_num - len(tickers)
         scraper_tickers = scraper_tickers[:limit_left]
 

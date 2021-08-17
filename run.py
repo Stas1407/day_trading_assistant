@@ -20,9 +20,9 @@ def main():
 
     max_stocks_list_size = 1200
     dict_path = "surpriver/dictionaries/data"
-    stocks_path = "best_stocks.txt"
+    stocks_path = "stocks.txt"
 
-    if stocks_path == "stocks.txt":
+    if stocks_path == "stocks.txt" and create_stocks_list:
         print("Cannot overwrite this file")
         return
 

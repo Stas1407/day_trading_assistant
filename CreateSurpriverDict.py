@@ -8,6 +8,7 @@ import warnings
 from utilities import print_banner
 import os
 import gc
+import datetime
 
 class CreateDict:
     def __init__(self, logger_queue, stocks_file_path, dict_path):
@@ -57,6 +58,8 @@ class CreateDict:
                         auto_adjust=False,
                         progress=True)
 
+        print("[+] Processing...")
+
         self._logger_queue.put(["DEBUG", f" CreateSurpriverDict: Got data after {time.time()-start}s"])
         return data
 
@@ -79,6 +82,7 @@ class CreateDict:
 
     def run(self):
         data = self.get_data()
+        failed = []
         print_banner("Preparing data for surpriver", "red")
         bar = Bar("", max=len(self.stocks_list))
 
@@ -87,8 +91,8 @@ class CreateDict:
             try:
                 stock_price_data = data[symbol]
             except KeyError as e:
-                stock_price_data = []
-                print("\n[-] Failed to get data for ", symbol)
+                failed.append(symbol)
+                continue
 
             bar.next()
 
@@ -119,8 +123,10 @@ class CreateDict:
                 np.save(self.DICT_PATH, self.features_dictionary_for_all_symbols)
 
         bar.finish()
-
+        print(f"[*] Successfully got data for {len(self.stocks_list) - len(failed)} out of {len(self.stocks_list)} tickers.")
         self._logger_queue.put(["INFO", f" CreateSurpriverDict: Dict created length - {len(self.features_dictionary_for_all_symbols)}"])
+        self._logger_queue.put(["DEBUG", f" CreateSurpriverDict: Failed - {failed}"])
+        self._logger_queue.put(["DEBUG", f" CreateSurpriverDict: Failed count - {len(failed)}"])
 
         np.save(self.DICT_PATH, self.features_dictionary_for_all_symbols)
 
