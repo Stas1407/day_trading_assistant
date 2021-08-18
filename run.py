@@ -8,19 +8,19 @@ def main():
 
     tickers = []
 
-    max_processes = 10
-    scraper_limit = 10
-    max_surpriver_stocks_num = 0
-    run_surpriver = False
+    max_processes = 40
+    scraper_limit = 35
+    max_surpriver_stocks_num = 5
+    run_surpriver = True
 
     show_prepost = False
 
-    create_dictionary = False
-    create_stocks_list = False
+    create_dictionary = True
+    create_stocks_list = True
 
     max_stocks_list_size = 1200
     dict_path = "surpriver/dictionaries/data"
-    stocks_path = "stocks.txt"
+    stocks_path = "best_stocks.txt"
 
     if stocks_path == "stocks.txt" and create_stocks_list:
         print("Cannot overwrite this file")

@@ -25,6 +25,9 @@
 #     - Use surpriver on full stocks list
 #     - Filter only stocks with - anomalus score from surpriver
 #     - Get most active stocks and premarket gappers from yfinance
+#        - Share data between surpriver and AssistantDataLoader
+        - Fix surpriver getting empty array
+        - If the processes limit is not hit throw in some extra stocks from most active and biggest gainers
         - test
 17. Make downloads more efficient
 18. Improve trading strategies:

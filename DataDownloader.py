@@ -10,7 +10,7 @@ import os
 import gc
 import datetime
 
-class CreateDict:
+class DataDownloader:
     def __init__(self, logger_queue, stocks_file_path, dict_path):
         warnings.filterwarnings("ignore")
 
@@ -20,8 +20,7 @@ class CreateDict:
         # Config
         self.taEngine = TAEngine(history_to_use=60)     # 60 bars * 15 minutes (DATA_GRANULARITY_MINUTES)
         self.DATA_GRANULARITY_MINUTES = 15
-        self.directory_path = str(os.path.dirname(os.path.abspath(__file__)))
-        self.STOCKS_FILE_PATH = self.directory_path + f"/surpriver/stocks/{stocks_file_path}"
+        self.STOCKS_FILE_PATH = stocks_file_path
         self.DICT_PATH = dict_path
 
         self._logger_queue.put(["INFO", " CreateSurpriverDict: Loading stocks from file..."])
@@ -48,7 +47,7 @@ class CreateDict:
         period = "30d"
         start = time.time()
 
-        print("[+] Downloading data for surpriver from yahoo finance...")
+        print("[+] Downloading data from yahoo finance...")
 
         data = yf.download(
                         tickers=" ".join(self.stocks_list),
@@ -83,7 +82,7 @@ class CreateDict:
     def run(self):
         data = self.get_data()
         failed = []
-        print_banner("Preparing data for surpriver", "red")
+        print_banner("Preparing data", "red")
         bar = Bar("", max=len(self.stocks_list))
 
         self._logger_queue.put(["INFO", " CreateSurpriverDict: Started creating dict"])
@@ -129,6 +128,7 @@ class CreateDict:
         self._logger_queue.put(["DEBUG", f" CreateSurpriverDict: Failed count - {len(failed)}"])
 
         np.save(self.DICT_PATH, self.features_dictionary_for_all_symbols)
+        data.to_pickle("data/all_stocks_data.pkl")
 
         del self.features_dictionary_for_all_symbols
         del data

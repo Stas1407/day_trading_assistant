@@ -6,3 +6,4 @@ secrets.py
 .gitignore
 data.pkl
 data_for_chart.pkl
+data/
