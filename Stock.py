@@ -175,13 +175,6 @@ class Stock(Process):
                 'volatility': round(float(self.volatility)/current_price, 3),
                 'strategy': "support & resistance"}
 
-        # # Low volatility filter
-        # if self.volatility/current_price < 0.1:
-        #     self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Too low volatility"])
-        #     info['state'] = "watch"
-        #     self._q.put(info)
-        #     return
-
         if support[0] == 0 and support[1] == 0:
             self._logger_queue.put(["WARNING", f"  Stock {self.ticker}: Skipping, resistance and support not found"])
             info['state'] = "skip"

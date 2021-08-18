@@ -128,7 +128,6 @@ class DataDownloader:
         self._logger_queue.put(["DEBUG", f" CreateSurpriverDict: Failed count - {len(failed)}"])
 
         np.save(self.DICT_PATH, self.features_dictionary_for_all_symbols)
-        data.to_pickle("data/all_stocks_data.pkl")
 
         del self.features_dictionary_for_all_symbols
         del data

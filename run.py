@@ -9,14 +9,14 @@ def main():
     tickers = []
 
     max_processes = 40
-    scraper_limit = 35
-    max_surpriver_stocks_num = 5
-    run_surpriver = True
+    scraper_limit = 40
+    max_surpriver_stocks_num = 0
+    run_surpriver = False
 
     show_prepost = False
 
-    create_dictionary = True
-    create_stocks_list = True
+    create_dictionary = False
+    create_stocks_list = False
 
     max_stocks_list_size = 1200
     dict_path = "surpriver/dictionaries/data"

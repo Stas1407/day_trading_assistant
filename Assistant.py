@@ -167,7 +167,7 @@ class Assistant:
                         print("[-] Wrong command")
 
                     for stock in worth_buying[show_from:show_to]:
-                        self._processes[stock].show_chart()
+                        self._processes[stock].show_chart(window=True)
                 elif inp == "help" or inp == "?":
                     print("Commands:")
                     print("\t <TICKER>                      = Shows chart of given ticker")
