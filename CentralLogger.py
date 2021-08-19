@@ -7,10 +7,10 @@ class CentralLogger(multiprocessing.Process):
         self.queue = queue
         self.log = ""
 
-        open("day_trading_assistant.log", "w").close()
+        open("logs/day_trading_assistant.log", "w").close()
 
     def run(self):
-        logging.basicConfig(filename="day_trading_assistant.log", level=logging.DEBUG)
+        logging.basicConfig(filename="logs/day_trading_assistant.log", level=logging.DEBUG)
         self.log = logging.getLogger(__name__)
         self.log.info("  Started Central Logging process")
 

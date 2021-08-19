@@ -33,9 +33,9 @@ class Stock(Process):
 
         # Data for finding levels (support and resistance)
         try:
-            self._df = pd.read_pickle("data.pkl")[ticker]
+            self._df = pd.read_pickle("data/data.pkl")[ticker]
         except KeyError:
-            self._df = pd.read_pickle("data.pkl")
+            self._df = pd.read_pickle("data/data.pkl")
 
         self._df['Date'] = pd.to_datetime(self._df.index)
         self._df['Date'] = self._df['Date'].apply(mpl_dates.date2num)
@@ -43,9 +43,9 @@ class Stock(Process):
 
         # Data in 5 min intervals for analysis
         try:
-            self._df5 = pd.read_pickle("data_for_chart.pkl")[ticker]
+            self._df5 = pd.read_pickle("data/data_for_chart.pkl")[ticker]
         except KeyError:
-            self._df5 = pd.read_pickle("data_for_chart.pkl")
+            self._df5 = pd.read_pickle("data/data_for_chart.pkl")
 
         self._df5['Date'] = pd.to_datetime(self._df5.index)
         self._df5['Date'] = self._df5['Date'].apply(mpl_dates.date2num)

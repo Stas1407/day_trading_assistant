@@ -105,7 +105,7 @@ class AssistantDataLoader:
         except IndexError:
             return -1
 
-    def get_more_stocks(self):
+    def get_more_stocks(self, limit):
         self._logger_queue.put(["INFO", f" AssistantDataLoader: Getting more stocks"])
 
         most_active = stock_info.get_day_most_active()["Symbol"].values.tolist()
@@ -163,7 +163,6 @@ class AssistantDataLoader:
             try:
                 volume = yf.Ticker(ticker).info["averageVolume"]
             except KeyError:
-                # TODO
                 self._logger_queue.put(["INFO", f" AssistantDataLoader: {ticker} could not find volume"])
                 volume = 20000
 
@@ -183,6 +182,12 @@ class AssistantDataLoader:
                 continue
 
             result.append(ticker)
+
+        if len(result) < limit:
+            result += list(filter(lambda x: data[x]["Close"][-1] < 20, most_active))[:limit-len(result)]
+            print(list(filter(lambda x: data[x]["Close"][-1] < 20, most_active))[:limit-len(result)])
+
+        result = result[:limit]
 
         return result
 
@@ -244,7 +249,7 @@ class AssistantDataLoader:
 
         if len(result) < self._scraper_limit:
             print("[+] Getting more stocks...")
-            result.extend(self.get_more_stocks())
+            result.extend(self.get_more_stocks(self._scraper_limit - len(result)))
 
         result = list(set(result))
 

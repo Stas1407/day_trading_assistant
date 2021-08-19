@@ -61,8 +61,8 @@ class Assistant:
             group_by='ticker',
             prepost=self._show_prepost)
 
-        data.to_pickle("data.pkl")
-        data_for_chart.to_pickle("data_for_chart.pkl")
+        data.to_pickle("data/data.pkl")
+        data_for_chart.to_pickle("data/data_for_chart.pkl")
 
         del data
         del data_for_chart
