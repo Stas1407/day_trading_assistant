@@ -11,7 +11,7 @@ import gc
 
 class Assistant:
     def __init__(self, q, logger_queue, additional_data_queue, max_processes, create_dictionary, create_stocks_list,
-                 dictionary_file_path, stocks_file_path, scraper_limit, max_stocks_list_size, max_surpriver_stocks_num,
+                 dictionary_file_path, stocks_file_path, web_stocks_limit, max_stocks_list_size, max_surpriver_stocks_num,
                  prepost, run_surpriver, tickers=None):
         # Queues
         self._q = q
@@ -25,7 +25,7 @@ class Assistant:
                                           create_stocks_list=create_stocks_list,
                                           dictionary_file_path=dictionary_file_path,
                                           stocks_file_path=stocks_file_path,
-                                          scraper_limit=scraper_limit,
+                                          web_stocks_limit=web_stocks_limit,
                                           max_stocks_list_size=max_stocks_list_size,
                                           max_surpriver_stocks_num=max_surpriver_stocks_num,
                                           run_surpriver=run_surpriver)

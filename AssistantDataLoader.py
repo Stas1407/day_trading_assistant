@@ -1,7 +1,7 @@
 import requests
 from secrets import API_KEY
 import json
-from DataDownloader import DataDownloader
+from CreateSurpriverDict import CreateSurpriverDict
 from bs4 import BeautifulSoup
 from surpriver.detection_engine import Surpriver
 import gc
@@ -17,11 +17,11 @@ from tqdm import tqdm
 
 class AssistantDataLoader:
     def __init__(self, logger_queue, create_stocks_list, create_dictionary, dictionary_file_path, stocks_file_path,
-                 scraper_limit, max_stocks_list_size, max_surpriver_stocks_num, run_surpriver):
+                 web_stocks_limit, max_stocks_list_size, max_surpriver_stocks_num, run_surpriver):
         # Config
         self.create_stocks_list_bool = create_stocks_list
         self.create_dictionary_bool = create_dictionary
-        self._scraper_limit = scraper_limit
+        self._web_stocks_limit = web_stocks_limit
         self._max_stocks_list_size = max_stocks_list_size
         self._max_surpriver_stocks_num = max_surpriver_stocks_num
         self._run_surpriver = run_surpriver
@@ -34,13 +34,12 @@ class AssistantDataLoader:
 
         # Urls
         self._stock_screener_url = "https://financialmodelingprep.com/api/v3/stock-screener?" \
-                                   "marketCapLowerThan=100000000&" \
-                                   "volumeMoreThan=20000&" \
+                                   "marketCapLowerThan=1000000000&" \
+                                   "volumeMoreThan=700000&" \
                                    "isActivelyTrading=true&" \
-                                   "priceLowerThan=20&" \
+                                   "priceLowerThan=25&" \
                                    "country=US&" \
                                    "exchange=nasdaq&" \
-                                   "betaMoreThan=1&" \
                                    "apikey={0}".format(API_KEY)
         self._stock_screener_for_surpriver = "https://financialmodelingprep.com/api/v3/stock-screener?" \
                                              "marketCapLowerThan=10000000000&" \
@@ -56,7 +55,7 @@ class AssistantDataLoader:
         self._logger_queue = logger_queue
 
     def create_surpriver_dictionary(self):
-        if not DataDownloader(self._logger_queue, self._stocks_file_path, self._dictionary_file_path).run():
+        if not CreateSurpriverDict(self._logger_queue, self._stocks_file_path, self._dictionary_file_path).run():
             self._run_surpriver = False
 
     def create_stocks_list(self):
@@ -82,9 +81,9 @@ class AssistantDataLoader:
         tab = []
 
         for row in s.find_all('tr'):
-            ticker = row.find("th")
-            if len(ticker.text) <= 4:
-                tab.append(ticker.text)
+            ticker = row.find("th").text.strip()
+            if len(ticker) <= 4:
+                tab.append(ticker)
 
         self._logger_queue.put(["DEBUG", f" AssistantDataLoader: Got {len(tab)} tickers from unusual volume detector"])
 
@@ -93,6 +92,8 @@ class AssistantDataLoader:
         tab.extend([i["symbol"] for i in response_content])
 
         self._logger_queue.put(["DEBUG", f" AssistantDataLoader: Got {len(response_content)} tickers from stock screener"])
+
+        tab = list(set(tab))
 
         return tab
 
@@ -105,115 +106,27 @@ class AssistantDataLoader:
         except IndexError:
             return -1
 
-    def get_more_stocks(self, limit):
-        self._logger_queue.put(["INFO", f" AssistantDataLoader: Getting more stocks"])
-
-        most_active = stock_info.get_day_most_active()["Symbol"].values.tolist()
-        gainers = stock_info.get_day_gainers()["Symbol"].values.tolist()
-
-        self._logger_queue.put(["INFO", f" AssistantDataLoader: Got {len(most_active)} most_active tickers"])
-        self._logger_queue.put(["INFO", f" AssistantDataLoader: Got {len(gainers)} gainers"])
-
-        tickers = list(set(most_active + gainers))
-
-        print_banner("Getting more stocks", "red")
+    def get_data(self, tickers):
+        print_banner("Downloading data", "green")
 
         data = yf.download(
             tickers=" ".join(tickers),
-            period="2d",
-            interval="1d",
-            group_by='ticker',
-            progress=True)
-
-        result = []
-
-        print_banner("Filtering", "cyan")
-
-        for ticker in tqdm(tickers):
-            try:
-                ticker_data = data[ticker]
-            except KeyError:
-                self._logger_queue.put(["ERROR", f" AssistantDataLoader: Ticker - {ticker} not found"])
-                continue
-
-            current_price = ticker_data["Close"][-1]
-
-            if np.isnan(current_price):
-                current_price = self.get_current_price(ticker)
-
-            if current_price > 20:
-                continue
-
-            try:
-                market_cap = int(pandas_data.get_quote_yahoo(ticker)["marketCap"])
-            except (KeyError, IndexError):
-                market_cap = 0
-                self._logger_queue.put(["WARNING", f" AssistantDataLoader: {ticker} Market Cap not found"])
-
-            if market_cap > 5000000000:
-                continue
-
-            gap = abs(ticker_data["Open"][-1] - ticker_data["Close"][-2]) / current_price
-
-            self._logger_queue.put(["INFO", f" AssistantDataLoader: {ticker} - gap = {gap}"])
-
-            if gap < 0.03:
-                continue
-
-            try:
-                volume = yf.Ticker(ticker).info["averageVolume"]
-            except KeyError:
-                self._logger_queue.put(["INFO", f" AssistantDataLoader: {ticker} could not find volume"])
-                volume = 20000
-
-            self._logger_queue.put(["INFO", f" AssistantDataLoader: {ticker} - volume = {volume}"])
-
-            if volume is None or volume < 20000:
-                continue
-
-            high = np.max(ticker_data["High"].last("2d"))
-            low = np.min(ticker_data["Low"].last("2d"))
-            volatility = (high - low) / low
-
-            self._logger_queue.put(["INFO", f" AssistantDataLoader: {ticker} - volatility = {volatility}"])
-
-            if volatility < 0.1:
-                self._logger_queue.put(["INFO", f" AssistantDataLoader: {ticker} - too low volatility"])
-                continue
-
-            result.append(ticker)
-
-        if len(result) < limit:
-            result += list(filter(lambda x: data[x]["Close"][-1] < 20, most_active))[:limit-len(result)]
-            print(list(filter(lambda x: data[x]["Close"][-1] < 20, most_active))[:limit-len(result)])
-
-        result = result[:limit]
-
-        return result
-
-    def get_best_stocks(self):
-        result = []
-
-        self._logger_queue.put(["INFO", " AssistantDataLoader: Running scraper"])
-        tickers = self.scraper()
-
-        self._logger_queue.put(["INFO", f" AssistantDataLoader: Got {len(tickers)} tickers from scraper"])
-
-        tickers = list(set(tickers))
-
-        print_banner("Filtering the best stocks", "green")
-
-        print("[+] Downloading data...")
-        data = yf.download(
-            tickers=" ".join(tickers),
-            period="2d",
+            period="5d",
             interval="1d",
             group_by='ticker',
             progress=True,
             threads=True)
 
-        print_banner("Filtering the best stocks", "green")
-        print("[+] Filtering data")
+        return data
+
+    def filter_tickers(self, tickers, mode):
+        result = []
+        data = self.get_data(tickers)
+
+        if mode == "Full":
+            print_banner("Filtering additional tickers", "red")
+        else:
+            print_banner("Filtering tickers", "cyan")
 
         for ticker in tqdm(tickers):
             try:
@@ -223,37 +136,76 @@ class AssistantDataLoader:
                 continue
 
             current_price = ticker_data["Close"][-1]
+
             if np.isnan(current_price):
                 current_price = self.get_current_price(ticker)
 
-            gap = abs(ticker_data["Open"][-1] - ticker_data["Close"][-2]) / current_price
-
-            self._logger_queue.put(["INFO", f" AssistantDataLoader: {ticker} - gap = {gap}"])
-
-            if gap < 0.05:
+            if current_price > 30 and mode == "Full":
                 continue
 
-            high = np.max(ticker_data["High"].last("2d"))
-            low = np.min(ticker_data["Low"].last("2d"))
-            volatility = (high - low) / low
+            if mode == "Full":
+                try:
+                    market_cap = int(pandas_data.get_quote_yahoo(ticker)["marketCap"])
+                except (KeyError, IndexError):
+                    market_cap = 0
+                    self._logger_queue.put(["WARNING", f" AssistantDataLoader: {ticker} Market Cap not found"])
 
-            self._logger_queue.put(["INFO", f" AssistantDataLoader: {ticker} - volatility = {volatility}"])
+                if market_cap > 5000000000:
+                    continue
 
-            if volatility < 0.1:
+            gap = abs(ticker_data["Open"][-1] - ticker_data["Close"][-2]) / current_price
+
+            if gap < 0.03:
+                continue
+
+            if mode == "Full":
+                try:
+                    volume = yf.Ticker(ticker).info["averageVolume"]
+                except KeyError:
+                    self._logger_queue.put(["INFO", f" AssistantDataLoader: {ticker} could not find volume"])
+                    volume = None
+
+                if volume is None or volume < 20000:
+                    continue
+
+            returns = np.log(ticker_data["Close"]/ticker_data["Close"].shift(-1))
+            volatility = (np.std(returns)*5**0.5)/current_price
+
+            if volatility < 0.05:
                 self._logger_queue.put(["INFO", f" AssistantDataLoader: {ticker} - too low volatility"])
                 continue
 
             result.append(ticker)
 
-        self._logger_queue.put(["INFO", f" AssistantDataLoader: After filtering {len(result)} stocks are left"])
-
-        if len(result) < self._scraper_limit:
-            print("[+] Getting more stocks...")
-            result.extend(self.get_more_stocks(self._scraper_limit - len(result)))
-
-        result = list(set(result))
-
         return result
+
+    def get_more_tickers(self):
+        most_active = stock_info.get_day_most_active()["Symbol"].values.tolist()
+        gainers = stock_info.get_day_gainers()["Symbol"].values.tolist()
+
+        return list(set(most_active+gainers))
+
+    def get_best_stocks(self):
+        self._logger_queue.put(["INFO", " AssistantDataLoader: Running scraper"])
+        tickers = self.scraper()
+        self._logger_queue.put(["INFO", f" AssistantDataLoader: Got {len(tickers)} tickers from scraper"])
+
+        best_stocks = self.filter_tickers(tickers, mode="Partial")
+
+        self._logger_queue.put(["INFO", f" AssistantDataLoader: After filtering {len(best_stocks)} tickers are left"])
+
+        if len(best_stocks) < self._web_stocks_limit:
+            self._logger_queue.put(["INFO", f" AssistantDataLoader: Getting more stocks"])
+
+            additional_tickers = self.get_more_tickers()
+            filtered_tickers = self.filter_tickers(additional_tickers, mode="Full")
+
+            self._logger_queue.put(["INFO", f" AssistantDataLoader: After filtering "
+                                            f"additional stocks {len(filtered_tickers)} tickers are left"])
+
+            best_stocks += filtered_tickers
+
+        return best_stocks[:self._web_stocks_limit]
 
     def get_tickers(self, tickers):
         if tickers is None:
@@ -304,9 +256,6 @@ class AssistantDataLoader:
 
         self._logger_queue.put(["DEBUG", f"AssistantDataLoader: Best stocks are - {best_stocks}"])
         self._logger_queue.put(["INFO", f"AssistantDataLoader: Best stocks length - {len(best_stocks)} tickers"])
-
-        limit_left = self._scraper_limit + self._max_surpriver_stocks_num - len(tickers)
-        best_stocks = best_stocks[:limit_left]
 
         tickers.extend(best_stocks)
 

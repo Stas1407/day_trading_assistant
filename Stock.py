@@ -9,6 +9,7 @@ from multiprocessing import Process, Event
 import time
 import schedule
 import webbrowser
+import json
 import gc
 
 class Stock(Process):
@@ -57,7 +58,9 @@ class Stock(Process):
         # Variables used by class
         self._levels = []
         self.__ticker = ticker
-        self.__volatility = np.mean(self._df['High'] - self._df['Low'])
+
+        returns = np.log(self._df["Close"].last("10d") / self._df["Close"].last("10d").shift(-1))
+        self.__volatility = (np.std(returns) * 5 ** 0.5)
 
         gc.collect()
 
@@ -120,7 +123,15 @@ class Stock(Process):
 
     def get_current_price(self):
         ticker = yfinance.Ticker(self.ticker)
-        data = ticker.history(period='1d')
+        flag = True
+
+        while flag:
+            try:
+                data = ticker.history(period='1d')
+                flag = False
+            except json.decoder.JSONDecodeError:
+                print("[-] Failed download current price")
+                flag = True
 
         try:
             return data['Close'][0]
@@ -153,11 +164,13 @@ class Stock(Process):
         self._logger_queue.put(["INFO", f"  Stock {self.ticker} - Nearest support: {support[1]}"])
 
         profit = (resistance[1]-current_price)/current_price
-        is_near_support = abs(current_price-support[1]) < self.volatility
+        is_near_support = abs(current_price-support[1]) < current_price*0.1
 
         self._logger_queue.put(["DEBUG", f"  Stock {self.ticker} - Estimated profit: {round(profit, 2)*100}"])
         self._logger_queue.put(["DEBUG", f"  Stock {self.ticker} - Is near support: {is_near_support}"])
         self._logger_queue.put(["INFO", f"  Stock {self.ticker} - Volatility: {self.volatility}"])
+        self._logger_queue.put(["INFO", f"  Stock {self.ticker} - Bollinger up: {bollinger_up[-1]}"])
+        self._logger_queue.put(["INFO", f"  Stock {self.ticker} - Bollinger down: {bollinger_down[-1]}"])
 
         if resistance[1] == 10000000:
             resistance[1] = "Not found"
@@ -172,7 +185,7 @@ class Stock(Process):
                 'support': support[1],
                 'profit': profit,
                 'is_near_support': is_near_support,
-                'volatility': round(float(self.volatility)/current_price, 3),
+                'volatility': str(int(round(float(self.volatility)/current_price, 2)*100)) + " %",
                 'strategy': "support & resistance"}
 
         if support[0] == 0 and support[1] == 0:

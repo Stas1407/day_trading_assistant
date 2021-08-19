@@ -9,8 +9,9 @@ def main():
     tickers = []
 
     max_processes = 40
-    scraper_limit = 40
+    web_stocks_limit = 40
     max_surpriver_stocks_num = 0
+
     run_surpriver = False
 
     show_prepost = False
@@ -34,7 +35,7 @@ def main():
     logger.start()
 
     a = Assistant(q, logging_queue, additional_data_queue, max_processes, create_dictionary, create_stocks_list,
-                  dict_path, stocks_path, scraper_limit, max_stocks_list_size, max_surpriver_stocks_num,
+                  dict_path, stocks_path, web_stocks_limit, max_stocks_list_size, max_surpriver_stocks_num,
                   show_prepost, run_surpriver, tickers=tickers)
     a.run()
 
