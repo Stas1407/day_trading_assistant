@@ -171,8 +171,6 @@ class AssistantDataLoader:
             returns = np.log(ticker_data["Close"]/ticker_data["Close"].shift(-1))
             volatility = (np.std(returns)*5**0.5)/current_price
 
-            self._logger_queue.put(["INFO", f" AssistantDataLoader: {ticker} - volatility - {volatility}"])
-
             if volatility < 0.05 or np.isnan(volatility):
                 self._logger_queue.put(["INFO", f" AssistantDataLoader: {ticker} - too low volatility"])
                 continue

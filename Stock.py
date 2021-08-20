@@ -215,7 +215,7 @@ class Stock(Process):
             else:
                 info['state'] = "worth attention"
                 info['strategy'] = "bollinger bands"
-                info['profit'] = bollinger_up[-1]
+                info['profit'] = round((bollinger_up[-1]-current_price) / current_price, 2)*100
 
         self._q.put(info)
 

@@ -19,17 +19,17 @@
 #         - Remove data so that child processes won't copy it
 #         - Every child process will read it's data from file
 # 14. Fix adding symbols
-14. Remove unnecesary log statements
 # 15. Sort trades by profit
-16. Improve getting symbols
+# 16. Improve getting symbols
 #     - Use surpriver on full stocks list
 #     - Filter only stocks with - anomalus score from surpriver
 #     - Get most active stocks and premarket gappers from yfinance
 #        - Share data between surpriver and AssistantDataLoader
 #         - If the processes limit is not hit throw in some extra stocks from most active and biggest gainers
-        - test
-18. Improve trading strategies:
-    - Make suport & resistance and bollinger bands work together
-    - Adjust distance that is recognized as close (near support & resistance or near bollinger bands)
+#        - test
+# 18. Improve trading strategies:
+#    - Make suport & resistance and bollinger bands work together
+#    - Adjust distance that is recognized as close (near support & resistance or near bollinger bands)
+18. Fix surpriver
 19. Add argparser
-20. Fix surpriver
+20. Remove unnecesary log statements

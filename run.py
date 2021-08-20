@@ -18,7 +18,6 @@ def main():
 
     create_dictionary = False
     create_stocks_list = False
-    download_data_for_assistant = True
 
     max_stocks_list_size = 1200
     dict_path = "surpriver/dictionaries/data"
@@ -37,7 +36,7 @@ def main():
 
     a = Assistant(q, logging_queue, additional_data_queue, max_processes, create_dictionary, create_stocks_list,
                   dict_path, stocks_path, web_stocks_limit, max_stocks_list_size, max_surpriver_stocks_num,
-                  show_prepost, run_surpriver, download_data_for_assistant, tickers=tickers)
+                  show_prepost, run_surpriver, tickers=tickers)
     a.run()
 
 
