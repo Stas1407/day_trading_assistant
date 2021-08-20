@@ -25,7 +25,6 @@ def handle_console_interface(logger_queue, q, max_processes, surpriver_tickers, 
             surpriver_tickers_dict[symbol] = prediction
 
     table_data = []
-    worth_attention = []
     worth_buying = []
 
     count = 0
@@ -51,7 +50,6 @@ def handle_console_interface(logger_queue, q, max_processes, surpriver_tickers, 
             max_processes -= 1
         elif stock['state'] == "worth attention":
             source = "Web"
-            worth_attention.append(stock["ticker"])
 
             if stock["ticker"] in surpriver_tickers_dict.keys():
                 source = "Surpriver (" + str(round(surpriver_tickers_dict[stock["ticker"]], 2)) + ") "
@@ -87,6 +85,10 @@ def handle_console_interface(logger_queue, q, max_processes, surpriver_tickers, 
             print_banner('Trades for today', "yellow")
 
             table_data = sorted(table_data, key=lambda x: int(x[2][:2].strip()), reverse=True)
+
+            worth_buying = [i[0] for i in table_data]
+            logger_queue.put(["DEBUG", f" Worth buying: {worth_buying}"])
+
             table_data = [["Ticker", "State", "Profit", "Near support", "Price", "Support", "Resistance", "Volatility",
                            "Source", "Strategy"]] + table_data
 
@@ -96,5 +98,3 @@ def handle_console_interface(logger_queue, q, max_processes, surpriver_tickers, 
 
             count = 0
             table_data = []
-            worth_buying = worth_attention.copy()
-            worth_attention.clear()

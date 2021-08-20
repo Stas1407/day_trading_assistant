@@ -45,7 +45,7 @@ class CreateSurpriverDict:
         period = "30d"
         start = time.time()
 
-        print("[+] Downloading data from yahoo finance...")
+        print("[+] Downloading data for surpriver from yahoo finance...")
 
         data = yf.download(
                         tickers=" ".join(self.stocks_list),

@@ -9,8 +9,8 @@ def main():
     tickers = []
 
     max_processes = 40
-    web_stocks_limit = 40
-    max_surpriver_stocks_num = 0
+    web_stocks_limit = 35
+    max_surpriver_stocks_num = 5
 
     run_surpriver = False
 
