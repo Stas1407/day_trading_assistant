@@ -12,7 +12,7 @@ import gc
 class Assistant:
     def __init__(self, q, logger_queue, additional_data_queue, max_processes, create_dictionary, create_stocks_list,
                  dictionary_file_path, stocks_file_path, web_stocks_limit, max_stocks_list_size, max_surpriver_stocks_num,
-                 prepost, run_surpriver, tickers=None):
+                 prepost, run_surpriver, download_data, tickers=None):
         # Queues
         self._q = q
         self._additional_queue = additional_data_queue
@@ -34,6 +34,7 @@ class Assistant:
         self._processes = {}
         self._interface = Process()
         self._show_prepost = prepost
+        self._download_data = download_data
 
         del data_loader
         gc.collect()
@@ -48,24 +49,28 @@ class Assistant:
             print_banner("Downloading final data", "cyan")
             print("[+] Downloading data for day trading assistant from yahoo finance (up to 3 minutes)...")
 
-        data = yf.download(
-            tickers=" ".join(tickers),
-            period="1y",
-            interval="1d",
-            group_by='ticker')
+        if self._download_data:
+            data = yf.download(
+                tickers=" ".join(tickers),
+                period="1y",
+                interval="1d",
+                group_by='ticker')
 
-        data_for_chart = yf.download(
-            tickers=" ".join(tickers),
-            period="30d",
-            interval="5m",
-            group_by='ticker',
-            prepost=self._show_prepost)
+            data_for_chart = yf.download(
+                tickers=" ".join(tickers),
+                period="30d",
+                interval="5m",
+                group_by='ticker',
+                prepost=self._show_prepost)
 
-        data.to_pickle("data/data.pkl")
-        data_for_chart.to_pickle("data/data_for_chart.pkl")
+            data.to_pickle("data/data.pkl")
+            data_for_chart.to_pickle("data/data_for_chart.pkl")
 
-        del data
-        del data_for_chart
+            del data
+            del data_for_chart
+
+        self._download_data = True
+
         gc.collect()
 
         if show_progress:

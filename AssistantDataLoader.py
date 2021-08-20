@@ -34,10 +34,10 @@ class AssistantDataLoader:
 
         # Urls
         self._stock_screener_url = "https://financialmodelingprep.com/api/v3/stock-screener?" \
-                                   "marketCapLowerThan=1000000000&" \
-                                   "volumeMoreThan=700000&" \
+                                   "marketCapLowerThan=700000000&" \
+                                   "volumeMoreThan=100000&" \
                                    "isActivelyTrading=true&" \
-                                   "priceLowerThan=25&" \
+                                   "priceLowerThan=30&" \
                                    "country=US&" \
                                    "exchange=nasdaq&" \
                                    "apikey={0}".format(API_KEY)
@@ -147,15 +147,15 @@ class AssistantDataLoader:
                 try:
                     market_cap = int(pandas_data.get_quote_yahoo(ticker)["marketCap"])
                 except (KeyError, IndexError):
-                    market_cap = 0
                     self._logger_queue.put(["WARNING", f" AssistantDataLoader: {ticker} Market Cap not found"])
-
-                if market_cap > 5000000000:
                     continue
 
-            gap = abs(ticker_data["Open"][-1] - ticker_data["Close"][-2]) / current_price
+                if market_cap > 500000000:
+                    continue
 
-            if gap < 0.03:
+            gap = abs(ticker_data["Open"][-1] - ticker_data["Close"][-2]) / ticker_data["Open"][-1]
+
+            if gap < 0.05:
                 continue
 
             if mode == "Full":
@@ -165,13 +165,15 @@ class AssistantDataLoader:
                     self._logger_queue.put(["INFO", f" AssistantDataLoader: {ticker} could not find volume"])
                     volume = None
 
-                if volume is None or volume < 20000:
+                if volume is None or volume < 200000:
                     continue
 
             returns = np.log(ticker_data["Close"]/ticker_data["Close"].shift(-1))
             volatility = (np.std(returns)*5**0.5)/current_price
 
-            if volatility < 0.05:
+            self._logger_queue.put(["INFO", f" AssistantDataLoader: {ticker} - volatility - {volatility}"])
+
+            if volatility < 0.05 or np.isnan(volatility):
                 self._logger_queue.put(["INFO", f" AssistantDataLoader: {ticker} - too low volatility"])
                 continue
 

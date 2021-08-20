@@ -60,7 +60,7 @@ class Stock(Process):
         self.__ticker = ticker
 
         returns = np.log(self._df["Close"].last("10d") / self._df["Close"].last("10d").shift(-1))
-        self.__volatility = (np.std(returns) * 5 ** 0.5)
+        self.__volatility = (np.std(returns) * 10 ** 0.5)
 
         gc.collect()
 
@@ -208,7 +208,7 @@ class Stock(Process):
             self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Not worth attention. Keeping an eye on this one."])
             info['state'] = 'watch'
 
-        if abs(current_price-bollinger_down[-1]) < self.volatility*0.1:
+        if abs(current_price-bollinger_down[-1]) < current_price*0.1:
             self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Near bollinger band"])
             if info['state'] == "worth attention":
                 info['strategy'] += " + bollinger bands"
