@@ -1,9 +1,0 @@
-venv
-.idea
-__pycache__
-day_trading_assistant.log
-secrets.py
-.gitignore
-data.pkl
-data_for_chart.pkl
-test.py

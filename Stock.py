@@ -32,33 +32,38 @@ class Stock(Process):
         self._show_chart_event = Event()
         self._show_chart_event_without_window = Event()
 
-        # Data for finding levels (support and resistance)
-        try:
-            self._df = pd.read_pickle("data/data.pkl")[ticker]
-        except KeyError:
-            self._df = pd.read_pickle("data/data.pkl")
-
-        self._df['Date'] = pd.to_datetime(self._df.index)
-        self._df['Date'] = self._df['Date'].apply(mpl_dates.date2num)
-        self._df = self._df.loc[:, ['Date', 'Open', 'High', 'Low', 'Close']]
-
-        # Data in 5 min intervals for analysis
-        try:
-            self._df5 = pd.read_pickle("data/data_for_chart.pkl")[ticker]
-        except KeyError:
-            self._df5 = pd.read_pickle("data/data_for_chart.pkl")
-
-        self._df5['Date'] = pd.to_datetime(self._df5.index)
-        self._df5['Date'] = self._df5['Date'].apply(mpl_dates.date2num)
-        self._df5 = self._df5.loc[:, ['Date', 'Open', 'High', 'Low', 'Close']]
-
-        # Data for chart
-        self._df_for_chart = self._df5.last("1d")
-
         # Variables used by class
         self._levels = []
         self.__ticker = ticker
 
+        # Data for finding levels (support and resistance)
+        try:
+            try:
+                self._df = pd.read_pickle("data/data.pkl")[ticker]
+            except KeyError:
+                self._df = pd.read_pickle("data/data.pkl")
+
+            self._df['Date'] = pd.to_datetime(self._df.index)
+            self._df['Date'] = self._df['Date'].apply(mpl_dates.date2num)
+            self._df = self._df.loc[:, ['Date', 'Open', 'High', 'Low', 'Close']]
+
+            # Data in 5 min intervals for analysis
+            try:
+                self._df5 = pd.read_pickle("data/data_for_chart.pkl")[ticker]
+            except KeyError:
+                self._df5 = pd.read_pickle("data/data_for_chart.pkl")
+
+            self._df5['Date'] = pd.to_datetime(self._df5.index)
+            self._df5['Date'] = self._df5['Date'].apply(mpl_dates.date2num)
+            self._df5 = self._df5.loc[:, ['Date', 'Open', 'High', 'Low', 'Close']]
+        except KeyError:
+            self._stop_event.set()
+            return
+
+        # Data for chart
+        self._df_for_chart = self._df5.last("1d")
+
+        # Volatility
         returns = np.log(self._df["Close"].last("10d") / self._df["Close"].last("10d").shift(-1))
         self.__volatility = (np.std(returns) * 10 ** 0.5)
 
@@ -308,8 +313,14 @@ class Stock(Process):
             time.sleep(1)
 
     def run(self):
+        if self._stop_event.is_set():
+            print(f"[-] {self.ticker}: Something went wrong")
+            self._logger_queue.put(["ERROR", f" {self.ticker}: Shutting down. Got stop event on startup"])
+            return
+
         self._find_levels(self._df)
         del self._df
+        gc.collect()
 
         self._find_levels(self._df5)
 

@@ -30,6 +30,6 @@
 # 18. Improve trading strategies:
 #    - Make suport & resistance and bollinger bands work together
 #    - Adjust distance that is recognized as close (near support & resistance or near bollinger bands)
-18. Fix surpriver
-19. Add argparser
-20. Remove unnecesary log statements
+# 18. Fix surpriver
+# 19. Add argparser
+20. test, test and test
