@@ -15,10 +15,10 @@ For finding the best stocks to monitor it uses:
   - https://financialmodelingprep.com
 
 ## Usage:
-Install requirements: `pip3 install -r requirements.txt`
-If you have problems installing requirements I recommend to use conda virtual environment.
-Run program with command: `python3 run.py`
-Than it will ask you a few simple questions about the mode that you would like to run the program in.
+Install requirements: `pip3 install -r requirements.txt`\
+If you have problems installing requirements I recommend to use conda virtual environment.\
+Run program with command: `python3 run.py`\
+Then it will ask you a few simple questions about the mode that you would like to run the program in.\
 More important ones are:
   - `How many processes can it run?` = The more processes it runs the more memory (RAM) it uses (40 processes = around 4GB)
   - `Do you want to run surpriver?` = Running surpriver equals longer startup time but more results
