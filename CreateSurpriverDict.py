@@ -7,7 +7,6 @@ from progress.bar import Bar
 import warnings
 from utilities import print_banner
 import gc
-
 class CreateSurpriverDict:
     def __init__(self, logger_queue, stocks_file_path, dict_path):
         warnings.filterwarnings("ignore")
