@@ -169,7 +169,7 @@ class Stock(Process):
         self._logger_queue.put(["INFO", f"  Stock {self.ticker} - Nearest support: {support[1]}"])
 
         profit = (resistance[1]-current_price)/current_price
-        is_near_support = abs(current_price-support[1]) < current_price*0.1
+        is_near_support = (current_price * 0.1 > current_price - support[1] > 0)
 
         self._logger_queue.put(["DEBUG", f"  Stock {self.ticker} - Estimated profit: {round(profit, 2)*100}"])
         self._logger_queue.put(["DEBUG", f"  Stock {self.ticker} - Is near support: {is_near_support}"])
@@ -213,7 +213,7 @@ class Stock(Process):
             self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Not worth attention. Keeping an eye on this one."])
             info['state'] = 'watch'
 
-        if abs(current_price-bollinger_down[-1]) < min([current_price*0.1, self.volatility]):
+        if 0 < current_price-bollinger_down[-1] < min([current_price * 0.1, self.volatility]):
             self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Near bollinger band"])
             if info['state'] == "worth attention":
                 info['strategy'] += " + bollinger bands"

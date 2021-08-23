@@ -75,7 +75,7 @@ class StartupManager:
                 create_dictionary = False
                 create_stocks_list = False
 
-        show_prepost = False
+        show_prepost = True
 
         max_stocks_list_size = 1200
         dict_path = "surpriver/dictionaries/data"
