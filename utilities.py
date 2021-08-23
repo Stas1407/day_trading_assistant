@@ -26,6 +26,7 @@ def handle_console_interface(logger_queue, q, max_processes, surpriver_tickers, 
 
     table_data = []
     worth_buying = []
+    tickers_set = set({})
 
     count = 0
     while True:
@@ -80,20 +81,26 @@ def handle_console_interface(logger_queue, q, max_processes, surpriver_tickers, 
         else:
             count += 1
 
+        tickers_set.add(stock["ticker"])
+
         logger_queue.put(["DEBUG", f"  Assistant-interface: Max_processes: {max_processes}, count: {count}"])
         if count == max_processes:
             print_banner('Trades for today', "yellow")
 
-            table_data = sorted(table_data, key=lambda x: int(x[2][:2].strip()), reverse=True)
+            if len(table_data) == 0:
+                print("[*] Haven't found anything yet. But don't worry I will keep looking.")
+                print(f"These are tickers I'm monitoring: {', '.join(tickers_set)}")
+            else:
+                table_data = sorted(table_data, key=lambda x: int(x[2][:2].strip()), reverse=True)
 
-            worth_buying = [i[0] for i in table_data]
-            logger_queue.put(["DEBUG", f" Worth buying: {worth_buying}"])
+                worth_buying = [i[0] for i in table_data]
+                logger_queue.put(["DEBUG", f" Worth buying: {worth_buying}"])
 
-            table_data = [["Ticker", "State", "Profit", "Near support", "Price", "Support", "Resistance", "Volatility",
-                           "Source", "Strategy"]] + table_data
+                table_data = [["Ticker", "State", "Profit", "Near support", "Price", "Support", "Resistance", "Volatility",
+                               "Source", "Strategy"]] + table_data
 
-            table = AsciiTable(table_data)
-            print(table.table)
+                table = AsciiTable(table_data)
+                print(table.table)
             print("Ticker (help for help menu): ", end="")
 
             count = 0

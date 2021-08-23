@@ -34,6 +34,7 @@ class Assistant:
         self._processes = {}
         self._interface = Process()
         self._show_prepost = prepost
+        self._run_surpriver = run_surpriver
 
         del data_loader
         gc.collect()
@@ -135,19 +136,22 @@ class Assistant:
                             self._tickers.append(inp[1:])
                             self._q.put({"max_processes": "+1"})
                 elif inp == "surpriver":
-                    table_data = []
-                    for ticker, prediction in self._surpriver_tickers:
-                        if self._processes[ticker].is_alive():
-                            self._processes[ticker].get_data()
+                    if self._run_surpriver:
+                        table_data = []
+                        for ticker, prediction in self._surpriver_tickers:
+                            if self._processes[ticker].is_alive():
+                                self._processes[ticker].get_data()
 
-                            data = self._additional_queue.get()
+                                data = self._additional_queue.get()
 
-                            table_data.append([ticker]+data+[round(prediction, 2)])
+                                table_data.append([ticker]+data+[round(prediction, 2)])
 
-                    sorted(table_data, key=lambda x: x[4])
-                    table_data = [["Ticker", "Price", "Support", "Resistance", "Estimated profit", "Volatility", "Prediction"]] + table_data
-                    table = AsciiTable(table_data)
-                    print(table.table)
+                        sorted(table_data, key=lambda x: x[4])
+                        table_data = [["Ticker", "Price", "Support", "Resistance", "Estimated profit", "Volatility", "Prediction"]] + table_data
+                        table = AsciiTable(table_data)
+                        print(table.table)
+                    else:
+                        print("[-] Surpriver is not running.")
                 elif "show" in inp:
                     self._q.put({"get_worth_buying": ""})
 

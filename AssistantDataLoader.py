@@ -111,7 +111,7 @@ class AssistantDataLoader:
 
         data = yf.download(
             tickers=" ".join(tickers),
-            period="5d",
+            period="3d",
             interval="1d",
             group_by='ticker',
             progress=True,

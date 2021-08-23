@@ -213,11 +213,11 @@ class Stock(Process):
             self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Not worth attention. Keeping an eye on this one."])
             info['state'] = 'watch'
 
-        if abs(current_price-bollinger_down[-1]) < current_price*0.1:
+        if abs(current_price-bollinger_down[-1]) < min([current_price*0.1, self.volatility]):
             self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Near bollinger band"])
             if info['state'] == "worth attention":
                 info['strategy'] += " + bollinger bands"
-            else:
+            elif round((bollinger_up[-1]-current_price) / current_price, 2)*100 > 8:
                 info['state'] = "worth attention"
                 info['strategy'] = "bollinger bands"
                 info['profit'] = round((bollinger_up[-1]-current_price) / current_price, 2)*100
@@ -314,7 +314,9 @@ class Stock(Process):
 
     def run(self):
         if self._stop_event.is_set():
-            print(f"[-] {self.ticker}: Something went wrong")
+            info = {'ticker': self.ticker,
+                    'state': "skip"}
+            self._q.put(info)
             self._logger_queue.put(["ERROR", f" {self.ticker}: Shutting down. Got stop event on startup"])
             return
 
