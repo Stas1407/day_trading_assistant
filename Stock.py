@@ -11,6 +11,7 @@ import schedule
 import webbrowser
 import json
 import gc
+from utilities import Group
 
 class Stock(Process):
     def __init__(self, ticker, queue, logger_queue, additional_queue):
@@ -19,7 +20,7 @@ class Stock(Process):
         # Config
         self._chrome_path = "C:/Program Files (x86)/Google/Chrome/Application/chrome.exe %s"
         self._url = "https://www.tradingview.com/chart/?symbol=" + ticker
-        self._min_profit = 10        # Percent %
+        self._min_profit = 2        # Percent %
 
         # Queues
         self._q = queue
@@ -72,7 +73,7 @@ class Stock(Process):
     @property
     def ticker(self):
         return self.__ticker
-    
+
     @property
     def volatility(self):
         return self.__volatility
@@ -102,19 +103,101 @@ class Stock(Process):
                      df['High'][i] > df['Close'][i + 1] > df['Close'][i + 2]
         return resistance
 
-    def _is_far_from_level(self, l):
-        return np.sum([abs(l - x) < self.__volatility for x in self._levels]) == 0
+    def group(self, l):
+        grouped = False
+
+        for i in range(len(self.groups)):
+            a = abs(l - self.groups[i].items[0])
+            b = self.groups[i].items[0]
+            c = abs(l - self.groups[i].items[0]) / self.groups[i].items[0]
+            if abs(l - self.groups[i].items[0]) / self.groups[i].items[0] < 0.035:
+                self.groups[i].items.append(l)
+                self.groups[i].average = sum(self.groups[i].items) / len(self.groups[i].items)
+                grouped = True
+                break
+
+        if not grouped:
+            self.groups.append(Group(l, [l]))
 
     def _find_levels(self, df):
+        current_price = df["Close"][-1]
+        self.groups = []
+
+        # Find resistance
+        counter = 0
+        current_range = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+        for i in df.index:
+            current_max = max(current_range, default=0)
+            value = round(df["High"][i], 2)
+
+            current_range = current_range[1:]
+            current_range.append(value)
+
+            if current_max == max(current_range, default=0):
+                counter += 1
+            else:
+                counter = 0
+            if counter == 7 and current_max != 0:
+                self.group(round(current_max, 2))
+
+        # Find support
+        counter = 0
+        current_range = [100000000, 100000000, 100000000, 100000000, 100000000, 100000000, 100000000, 100000000,
+                         100000000, 100000000]
+
+        for i in df.index:
+            current_min = min(current_range, default=100000000)
+            value = round(df["Low"][i], 2)
+
+            current_range = current_range[1:]
+            current_range.append(value)
+
+            if current_min == min(current_range, default=100000000):
+                counter += 1
+            else:
+                counter = 0
+            if counter == 7:
+                self.group(round(current_min, 2))
+
+        # Another way to find support and resistance
         for i in range(2, df.shape[0] - 2):
             if self._is_support(i, df):
                 l = df['Low'][i]
-                if self._is_far_from_level(l):
-                    self._levels.append((i, l))
+                self.group(round(l, 2))
             elif self._is_resistance(i, df):
                 l = df['High'][i]
-                if self._is_far_from_level(l):
-                    self._levels.append((i, l))
+                self.group(round(l, 2))
+
+    def filter_levels(self):
+        current_price = self.get_current_price()
+        levels = []
+
+        for group in self.groups:
+            levels.append([len(group.items), group.average])
+
+        self._logger_queue.put(["DEBUG", f" Stocks {self.ticker}: Found {len(levels)} levels"])
+
+        filtered_levels = list(filter(lambda x: x[0] > 2, levels))
+        levels_len = len([abs(i[1] - current_price) / current_price < 0.3 for i in filtered_levels])
+
+        if levels_len > 12:
+            filtered_levels = list(filter(lambda x: x[0] > 10, levels))
+            levels_len = len([abs(i[1] - current_price) / current_price < 0.3 for i in filtered_levels])
+        elif levels_len > 8:
+            filtered_levels = list(filter(lambda x: x[0] > 5, levels))
+            levels_len = len([abs(i[1] - current_price) / current_price < 0.3 for i in filtered_levels])
+
+        if levels_len < 6:
+            filtered_levels = list(filter(lambda x: x[0] > 1, levels))
+            levels_len = len([abs(i[1] - current_price) / current_price < 0.3 for i in levels])
+            if levels_len < 5:
+                filtered_levels = levels
+
+        self._logger_queue.put(["DEBUG", f" Stock {self.ticker}: After filtering {len(filtered_levels)} levels left"])
+        self._logger_queue.put(["DEBUG", f" Stock {self.ticker}: {filtered_levels}"])
+
+        self._levels.extend(filtered_levels)
 
     def _get_sma(self, prices, rate):
         return prices.rolling(rate).mean()
@@ -168,10 +251,10 @@ class Stock(Process):
         self._logger_queue.put(["INFO", f"  Stock {self.ticker} - Nearest resistance: {resistance[1]}"])
         self._logger_queue.put(["INFO", f"  Stock {self.ticker} - Nearest support: {support[1]}"])
 
-        profit = (resistance[1]-current_price)/current_price
-        is_near_support = (current_price * 0.1 > current_price - support[1] > 0)
+        profit = (resistance[1] - current_price) / current_price
+        is_near_support = (current_price - support[1]) * 100 / (resistance[1] - support[1]) < 30
 
-        self._logger_queue.put(["DEBUG", f"  Stock {self.ticker} - Estimated profit: {round(profit, 2)*100}"])
+        self._logger_queue.put(["DEBUG", f"  Stock {self.ticker} - Estimated profit: {round(profit, 2) * 100}"])
         self._logger_queue.put(["DEBUG", f"  Stock {self.ticker} - Is near support: {is_near_support}"])
         self._logger_queue.put(["INFO", f"  Stock {self.ticker} - Volatility: {self.volatility}"])
         self._logger_queue.put(["INFO", f"  Stock {self.ticker} - Bollinger up: {bollinger_up[-1]}"])
@@ -181,7 +264,7 @@ class Stock(Process):
             resistance[1] = "Not found"
             profit = "Unknown"
         else:
-            profit = round(profit, 2)*100
+            profit = round(profit, 2) * 100
 
         info = {'ticker': self.ticker,
                 'state': "",
@@ -190,21 +273,21 @@ class Stock(Process):
                 'support': support[1],
                 'profit': profit,
                 'is_near_support': is_near_support,
-                'volatility': str(int(round(float(self.volatility)/current_price, 2)*100)) + " %",
+                'volatility': str(int(round(float(self.volatility) / current_price, 2) * 100)) + " %",
                 'strategy': "support & resistance"}
 
-        if support[0] == 0 and support[1] == 0:
-            self._logger_queue.put(["WARNING", f"  Stock {self.ticker}: Skipping, resistance and support not found"])
-            info['state'] = "skip"
+        if (bollinger_up[-1] - bollinger_down[-1]) / current_price < 0.04:
+            self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Bollinger bands too narrow, watching..."])
+            info['state'] = "watch"
             self._q.put(info)
-            self._stop_event.set()
             return
         elif profit == "Unknown":
             if is_near_support:
                 self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Worth attention, but resistance not found"])
                 info['state'] = 'worth attention no resistance'
             else:
-                self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Not worth attention. Keeping an eye on this one."])
+                self._logger_queue.put(
+                    ["INFO", f"  Stock {self.ticker}: Not worth attention. Keeping an eye on this one."])
                 info['state'] = 'watch'
         elif is_near_support and profit >= self._min_profit:
             self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Worth attention"])
@@ -213,18 +296,18 @@ class Stock(Process):
             self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Not worth attention. Keeping an eye on this one."])
             info['state'] = 'watch'
 
-        if 0 < current_price-bollinger_down[-1] < min([current_price * 0.1, self.volatility]):
-            self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Near bollinger band"])
+        if abs(current_price - bollinger_down[-1]) * 100 / (bollinger_up[-1] - bollinger_down[-1]) <= 30:
+            self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Near lower bollinger band"])
             if info['state'] == "worth attention":
                 info['strategy'] += " + bollinger bands"
-            elif round((bollinger_up[-1]-current_price) / current_price, 2)*100 > 8:
+            elif round((bollinger_up[-1] - current_price) / current_price, 2) * 100 > 8:
                 info['state'] = "worth attention"
                 info['strategy'] = "bollinger bands"
-                info['profit'] = round((bollinger_up[-1]-current_price) / current_price, 2)*100
+                info['profit'] = round((bollinger_up[-1] - current_price) / current_price, 2) * 100
 
         self._q.put(info)
 
-    def _show_chart(self, dformat="%d/%b/%Y %H:%M", candle_width=0.6/(24 * 15), show_levels=True):
+    def _show_chart(self, dformat="%d/%b/%Y %H:%M", candle_width=0.6 / (24 * 15), show_levels=True):
         self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Showing chart"])
 
         webbrowser.get(self._chrome_path).open(self._url)
@@ -253,7 +336,6 @@ class Stock(Process):
                 t = str(self._df_for_chart.index[0])
             except Exception as e:
                 print("\n[-] Something went wrong. Check logs for details")
-                print("Try running with --prepost False  (It disables pre and post market data)")          # TODO
                 self._logger_queue.put(["ERROR", f" Stock {self.ticker} - {e} while showing chart"])
                 self._logger_queue.put(["ERROR", f" Stock {self.ticker} - {self._df_for_chart}"])
                 self._logger_queue.put(["ERROR", f" Stock {self.ticker} - length: {len(self._df_for_chart)}"])
@@ -266,14 +348,15 @@ class Stock(Process):
 
             if show_levels:
                 for level in self._levels:
-                    if current_price + 5 * self.__volatility > level[1] > current_price - 5 * self.__volatility:
+                    if abs(level[1] - current_price) / current_price < 0.3:
                         if level[1] > current_price:
                             color = "red"
                         else:
                             color = "green"
                         plt.hlines(level[1], xmin=self._df_for_chart['Date'][0],
                                    xmax=max(self._df_for_chart['Date']), colors=color)
-                        plt.text(self._df_for_chart['Date'][0], level[1]+0.01, round(level[1], 2), ha="left", va='center')
+                        plt.text(self._df_for_chart['Date'][0], level[1] + 0.01,
+                                 str(round(level[1], 2)) + f" ({level[0]})", ha="left", va='center')
 
             plt.show()
 
@@ -307,7 +390,9 @@ class Stock(Process):
                 price = self.get_current_price()
                 support, resistance = self.get_nearest_support_resistance(price)
                 profit = (resistance[1] - price) / price
-                self._additional_queue.put([round(price, 2), round(support[1], 2), round(resistance[1], 2), str(round(profit, 2)*100)+"%", round(float(self.volatility), 3)])
+                self._additional_queue.put(
+                    [round(price, 2), round(support[1], 2), round(resistance[1], 2), str(round(profit, 2) * 100) + "%",
+                     round(float(self.volatility), 3)])
 
             schedule.run_pending()
             time.sleep(1)
@@ -325,6 +410,8 @@ class Stock(Process):
         gc.collect()
 
         self._find_levels(self._df5)
+
+        self.filter_levels()
 
         self._logger_queue.put(["INFO", f"  Stock {self.ticker} - levels: {self.levels}"])
 

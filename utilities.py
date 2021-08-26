@@ -4,6 +4,11 @@ from termcolor import colored
 from colorama import init
 from terminaltables import AsciiTable
 
+class Group:
+    def __init__(self, average, items):
+        self.average = average
+        self.items = items
+
 def cls():
     os.system('cls' if os.name == 'nt' else 'clear')
 
@@ -89,7 +94,7 @@ def handle_console_interface(logger_queue, q, max_processes, surpriver_tickers, 
 
             if len(table_data) == 0:
                 print("[*] Haven't found anything yet. But don't worry I will keep looking.")
-                print(f"These are tickers I'm monitoring: {', '.join(tickers_set)}")
+                print(f"These are the tickers that I'm monitoring: {', '.join(tickers_set)}")
             else:
                 table_data = sorted(table_data, key=lambda x: int(x[2][:2].strip()), reverse=True)
 

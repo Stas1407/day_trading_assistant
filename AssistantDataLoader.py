@@ -150,12 +150,12 @@ class AssistantDataLoader:
                     self._logger_queue.put(["WARNING", f" AssistantDataLoader: {ticker} Market Cap not found"])
                     continue
 
-                if market_cap > 500000000:
+                if market_cap > 1000000000:
                     continue
 
             gap = abs(ticker_data["Open"][-1] - ticker_data["Close"][-2]) / ticker_data["Open"][-1]
 
-            if gap < 0.05:
+            if gap < 0.03:
                 continue
 
             if mode == "Full":

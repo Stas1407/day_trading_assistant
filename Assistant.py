@@ -68,7 +68,6 @@ class Assistant:
         del data
         del data_for_chart
 
-
         gc.collect()
 
         if show_progress:

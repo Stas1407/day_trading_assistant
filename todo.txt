@@ -33,3 +33,5 @@
 # 18. Fix surpriver
 # 19. Add argparser
 20. test, test and test
+21. Fix bollinger bands
+22. Get more symbols
