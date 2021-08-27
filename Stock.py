@@ -36,6 +36,7 @@ class Stock(Process):
         # Variables used by class
         self._levels = []
         self.__ticker = ticker
+        self.groups = []
 
         # Data for finding levels (support and resistance)
         try:
@@ -107,9 +108,6 @@ class Stock(Process):
         grouped = False
 
         for i in range(len(self.groups)):
-            a = abs(l - self.groups[i].items[0])
-            b = self.groups[i].items[0]
-            c = abs(l - self.groups[i].items[0]) / self.groups[i].items[0]
             if abs(l - self.groups[i].items[0]) / self.groups[i].items[0] < 0.035:
                 self.groups[i].items.append(l)
                 self.groups[i].average = sum(self.groups[i].items) / len(self.groups[i].items)
@@ -119,45 +117,65 @@ class Stock(Process):
         if not grouped:
             self.groups.append(Group(l, [l]))
 
-    def _find_levels(self, df):
-        current_price = df["Close"][-1]
-        self.groups = []
+    def iterlines(self, x):
+        # a little bit modified function from https://github.com/dysonance/Trendy
+        window = 30
+        x = np.array(x)
+        n = len(x)
 
-        # Find resistance
-        counter = 0
-        current_range = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        sigs = np.zeros(n, dtype=float)
+
+        i = window
+        while i != n:
+            if x[i] > max(x[i - window:i]):
+                sigs[i] = 1
+            elif x[i] < min(x[i - window:i]):
+                sigs[i] = -1
+            i += 1
+
+        xmin = np.where(sigs == -1.0)[0]
+        xmax = np.where(sigs == 1.0)[0]
+        ymin = x[xmin]
+        ymax = x[xmax]
+
+        result = []
+        result.extend(ymin)
+        result.extend(ymax)
+
+        return result
+
+    def _find_levels(self, df):
+        counter_max = 0
+        current_range_max = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        counter_min = 0
+        current_range_min = [100000000, 100000000, 100000000, 100000000, 100000000, 100000000, 100000000, 100000000,
+                             100000000, 100000000]
 
         for i in df.index:
-            current_max = max(current_range, default=0)
+            current_max = max(current_range_max, default=0)
+            current_min = min(current_range_min, default=100000000)
+
             value = round(df["High"][i], 2)
 
-            current_range = current_range[1:]
-            current_range.append(value)
+            current_range_max = current_range_max[1:]
+            current_range_min = current_range_min[1:]
 
-            if current_max == max(current_range, default=0):
-                counter += 1
+            current_range_max.append(value)
+            current_range_min.append(value)
+
+            if current_max == max(current_range_max, default=0):
+                counter_max += 1
             else:
-                counter = 0
-            if counter == 7 and current_max != 0:
+                counter_max = 0
+            if counter_max == 7 and current_max != 0:
                 self.group(round(current_max, 2))
 
-        # Find support
-        counter = 0
-        current_range = [100000000, 100000000, 100000000, 100000000, 100000000, 100000000, 100000000, 100000000,
-                         100000000, 100000000]
-
-        for i in df.index:
-            current_min = min(current_range, default=100000000)
-            value = round(df["Low"][i], 2)
-
-            current_range = current_range[1:]
-            current_range.append(value)
-
-            if current_min == min(current_range, default=100000000):
-                counter += 1
+            if current_min == min(current_range_min, default=100000000):
+                counter_min += 1
             else:
-                counter = 0
-            if counter == 7:
+                counter_min = 0
+
+            if counter_min == 7:
                 self.group(round(current_min, 2))
 
         # Another way to find support and resistance
@@ -169,6 +187,11 @@ class Stock(Process):
                 l = df['High'][i]
                 self.group(round(l, 2))
 
+        # Another way - a little bit modified function from https://github.com/dysonance/Trendy
+        results = self.iterlines(df["Close"])
+        for i in results:
+            self.group(i)
+
     def filter_levels(self):
         current_price = self.get_current_price()
         levels = []
@@ -178,20 +201,17 @@ class Stock(Process):
 
         self._logger_queue.put(["DEBUG", f" Stocks {self.ticker}: Found {len(levels)} levels"])
 
-        filtered_levels = list(filter(lambda x: x[0] > 2, levels))
+        filtered_levels = list(filter(lambda x: x[0] > 20, levels))
         levels_len = len([abs(i[1] - current_price) / current_price < 0.3 for i in filtered_levels])
 
         if levels_len > 12:
-            filtered_levels = list(filter(lambda x: x[0] > 10, levels))
-            levels_len = len([abs(i[1] - current_price) / current_price < 0.3 for i in filtered_levels])
-        elif levels_len > 8:
-            filtered_levels = list(filter(lambda x: x[0] > 5, levels))
+            filtered_levels = list(filter(lambda x: x[0] > 30, levels))
             levels_len = len([abs(i[1] - current_price) / current_price < 0.3 for i in filtered_levels])
 
         if levels_len < 6:
-            filtered_levels = list(filter(lambda x: x[0] > 1, levels))
+            filtered_levels = list(filter(lambda x: x[0] > 15, levels))
             levels_len = len([abs(i[1] - current_price) / current_price < 0.3 for i in levels])
-            if levels_len < 5:
+            if levels_len < 6:
                 filtered_levels = levels
 
         self._logger_queue.put(["DEBUG", f" Stock {self.ticker}: After filtering {len(filtered_levels)} levels left"])
@@ -416,4 +436,5 @@ class Stock(Process):
         self._logger_queue.put(["INFO", f"  Stock {self.ticker} - levels: {self.levels}"])
 
         self.check_if_worth_attention()
+
         self.__watch()
