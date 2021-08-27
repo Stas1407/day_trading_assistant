@@ -38,7 +38,6 @@ class AssistantDataLoader:
                                    "volumeMoreThan=100000&" \
                                    "isActivelyTrading=true&" \
                                    "priceLowerThan=30&" \
-                                   "country=US&" \
                                    "exchange=nasdaq&" \
                                    "apikey={0}".format(API_KEY)
         self._stock_screener_for_surpriver = "https://financialmodelingprep.com/api/v3/stock-screener?" \
@@ -128,6 +127,13 @@ class AssistantDataLoader:
         else:
             print_banner("Filtering tickers", "cyan")
 
+        fvolatility = 0
+        nan_volatility = 0
+
+        fvolume = 0
+        fcap = 0
+        fgap = 0
+
         for ticker in tqdm(tickers):
             try:
                 ticker_data = data[ticker]
@@ -150,12 +156,15 @@ class AssistantDataLoader:
                     self._logger_queue.put(["WARNING", f" AssistantDataLoader: {ticker} Market Cap not found"])
                     continue
 
-                if market_cap > 1000000000:
+                if market_cap > 5000000000:
+                    fcap += 1
+                    self._logger_queue.put(["INFO", f" AssistantDataLoader: {ticker} Too high market cap"])
                     continue
 
             gap = abs(ticker_data["Open"][-1] - ticker_data["Close"][-2]) / ticker_data["Open"][-1]
 
-            if gap < 0.03:
+            if gap < 0.02:
+                fgap += 1
                 continue
 
             if mode == "Full":
@@ -166,17 +175,29 @@ class AssistantDataLoader:
                     volume = None
 
                 if volume is None or volume < 200000:
+                    fvolume += 1
+                    self._logger_queue.put(["INFO", f" AssistantDataLoader: {ticker} Too low volume"])
                     continue
 
             returns = np.log(ticker_data["Close"]/ticker_data["Close"].shift(-1))
             volatility = (np.std(returns)*5**0.5)/current_price
 
-            if volatility < 0.05 or np.isnan(volatility):
-                self._logger_queue.put(["INFO", f" AssistantDataLoader: {ticker} - too low volatility"])
+            if volatility < 0.04 or np.isnan(volatility):
+                if np.isnan(volatility):
+                    nan_volatility += 1
+                    self._logger_queue.put(["INFO", f" AssistantDataLoader: {ticker} - nan volatility"])
+                else:
+                    fvolatility += 1
+                    self._logger_queue.put(["INFO", f" AssistantDataLoader: {ticker} - too low volatility"])
                 continue
 
             result.append(ticker)
 
+        self._logger_queue.put(["INFO", f" AssistantDataLoader: Rejected volatility - {fvolatility}"])
+        self._logger_queue.put(["INFO", f" AssistantDataLoader: Nan volatility - {nan_volatility}"])
+        self._logger_queue.put(["INFO", f" AssistantDataLoader: Rejected volume - {fvolume}"])
+        self._logger_queue.put(["INFO", f" AssistantDataLoader: Rejected gap - {fgap}"])
+        self._logger_queue.put(["INFO", f" AssistantDataLoader: Rejected market cap - {fcap}"])
         return result
 
     def get_more_tickers(self):

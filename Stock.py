@@ -12,6 +12,7 @@ import webbrowser
 import json
 import gc
 from utilities import Group
+import random
 
 class Stock(Process):
     def __init__(self, ticker, queue, logger_queue, additional_queue):
@@ -37,6 +38,7 @@ class Stock(Process):
         self._levels = []
         self.__ticker = ticker
         self.groups = []
+        self._trend_lines = []
 
         # Data for finding levels (support and resistance)
         try:
@@ -83,13 +85,17 @@ class Stock(Process):
     def levels(self):
         return self._levels
 
+    @property
+    def trend_lines(self):
+        return self._trend_lines
+
     def stop(self):
         self._stop_event.set()
 
     def show_chart(self, window):
-        self._show_chart_event.set()
         if not window:
             self._show_chart_event_without_window.set()
+        self._show_chart_event.set()
 
     def get_data(self):
         self._get_data_event.set()
@@ -108,6 +114,9 @@ class Stock(Process):
         grouped = False
 
         for i in range(len(self.groups)):
+            a = abs(l - self.groups[i].items[0])
+            b = self.groups[i].items[0]
+            c = abs(l - self.groups[i].items[0]) / self.groups[i].items[0]
             if abs(l - self.groups[i].items[0]) / self.groups[i].items[0] < 0.035:
                 self.groups[i].items.append(l)
                 self.groups[i].average = sum(self.groups[i].items) / len(self.groups[i].items)
@@ -219,6 +228,55 @@ class Stock(Process):
 
         self._levels.extend(filtered_levels)
 
+    def segtrends(self, x):
+        # a little bit modified function from https://github.com/dysonance/Trendy
+        segments = 3
+        y = np.array(x)
+
+        # Implement trendlines
+        segments = int(segments)
+        maxima = np.ones(segments)
+        minima = np.ones(segments)
+        segsize = int(len(y) / segments)
+        for i in range(1, segments + 1):
+            ind2 = i * segsize
+            ind1 = ind2 - segsize
+            maxima[i - 1] = max(y[ind1:ind2])
+            minima[i - 1] = min(y[ind1:ind2])
+
+        # Find the indexes of these maxima in the data
+        x_maxima = np.ones(segments)
+        x_minima = np.ones(segments)
+        for i in range(0, segments):
+            x_maxima[i] = np.where(y == maxima[i])[0][0]
+            x_minima[i] = np.where(y == minima[i])[0][0]
+
+        lines = []
+
+        for i in range(0, segments - 1):
+            maxslope = (maxima[i + 1] - maxima[i]) / (x_maxima[i + 1] - x_maxima[i])
+            a_max = maxima[i] - (maxslope * x_maxima[i])
+            b_max = maxima[i] + (maxslope * (len(y) - x_maxima[i]))
+            maxline = np.linspace(a_max, b_max, len(y))
+
+            minslope = (minima[i + 1] - minima[i]) / (x_minima[i + 1] - x_minima[i])
+            a_min = minima[i] - (minslope * x_minima[i])
+            b_min = minima[i] + (minslope * (len(y) - x_minima[i]))
+            minline = np.linspace(a_min, b_min, len(y))
+
+            lines.append([a_max, b_max, len(y)])
+            lines.append([a_min, b_min, len(y)])
+
+        # OUTPUT
+        return lines
+
+    def find_trend_lines(self, df):
+        try:
+            lines = self.segtrends(df.last("3d")["Close"])
+            self._trend_lines = lines
+        except IndexError:
+            pass
+
     def _get_sma(self, prices, rate):
         return prices.rolling(rate).mean()
 
@@ -258,6 +316,34 @@ class Stock(Process):
 
         return support, resistance
 
+    def get_nearest_trend_line(self, current_price, full, update=False):
+        lines = []
+
+        if update:
+            # Update trend lines
+            for i in range(len(self.trend_lines)):
+                line = self.trend_lines[i]
+                full_line = np.linspace(line[0], line[1], line[2] + 1)
+                line = [full_line[0], full_line[-1], len(full_line)]
+                lines.append(line)
+
+            self._trend_lines = lines
+
+        nearest_line_end = 0
+        nearest_line_start = 0
+        length = 0
+
+        for line in self.trend_lines:
+            if abs(current_price - line[1]) < abs(nearest_line_end - current_price):
+                nearest_line_end = line[1]
+                nearest_line_start = line[0]
+                length = line[2]
+
+        if nearest_line_end == 0 and nearest_line_start == 0 and length == 0:
+            return 0
+
+        return nearest_line_end if not full else [nearest_line_start, nearest_line_end, length]
+
     def check_if_worth_attention(self):
         self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Checking if worth buying"])
 
@@ -282,7 +368,7 @@ class Stock(Process):
 
         if resistance[1] == 10000000:
             resistance[1] = "Not found"
-            profit = "Unknown"
+            profit = -1
         else:
             profit = round(profit, 2) * 100
 
@@ -296,12 +382,12 @@ class Stock(Process):
                 'volatility': str(int(round(float(self.volatility) / current_price, 2) * 100)) + " %",
                 'strategy': "support & resistance"}
 
-        if (bollinger_up[-1] - bollinger_down[-1]) / current_price < 0.04:
+        if (bollinger_up[-1] - bollinger_down[-1]) / bollinger_up[-1] < 0.03:
             self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Bollinger bands too narrow, watching..."])
             info['state'] = "watch"
             self._q.put(info)
             return
-        elif profit == "Unknown":
+        elif profit == -1:
             if is_near_support:
                 self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Worth attention, but resistance not found"])
                 info['state'] = 'worth attention no resistance'
@@ -320,10 +406,19 @@ class Stock(Process):
             self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Near lower bollinger band"])
             if info['state'] == "worth attention":
                 info['strategy'] += " + bollinger bands"
-            elif round((bollinger_up[-1] - current_price) / current_price, 2) * 100 > 8:
+            else:
                 info['state'] = "worth attention"
                 info['strategy'] = "bollinger bands"
                 info['profit'] = round((bollinger_up[-1] - current_price) / current_price, 2) * 100
+
+        nearest_trend_line = self.get_nearest_trend_line(current_price, full=False, update=True)
+        if nearest_trend_line*0.015 > current_price-nearest_trend_line > 0:
+            self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Near trend line"])
+            if info['state'] == "worth attention":
+                info['strategy'] += " + trend line"
+            else:
+                info['state'] = "worth attention"
+                info['strategy'] = "near trend line"
 
         self._q.put(info)
 
@@ -378,7 +473,17 @@ class Stock(Process):
                         plt.text(self._df_for_chart['Date'][0], level[1] + 0.01,
                                  str(round(level[1], 2)) + f" ({level[0]})", ha="left", va='center')
 
+            trend_line = self.get_nearest_trend_line(current_price, full=True)
+            if trend_line != 0:
+                full_line = np.linspace(trend_line[0], trend_line[1], trend_line[2])
+
+                plt.axline((self._df_for_chart["Date"][0], full_line[157]), (self._df_for_chart["Date"][-1], full_line[-1]),
+                           color="deepskyblue")
+
+            time.sleep(random.random()+random.randint(0, 3))
             plt.show()
+
+        self._show_chart_event_without_window.clear()
 
     def __watch(self):
         self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Started watching"])
@@ -400,7 +505,9 @@ class Stock(Process):
 
                 if chart_process.is_alive():
                     self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Chart is already shown"])
+                    print("[-] Chart is already shown. ")
                 else:
+                    time.sleep(0.5)
                     chart_process = Process(target=self._show_chart)
                     chart_process.start()
 
@@ -434,6 +541,8 @@ class Stock(Process):
         self.filter_levels()
 
         self._logger_queue.put(["INFO", f"  Stock {self.ticker} - levels: {self.levels}"])
+
+        self.find_trend_lines(self._df5)
 
         self.check_if_worth_attention()
 
