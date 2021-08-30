@@ -15,12 +15,12 @@ For finding the best stocks to monitor it uses:
   - https://financialmodelingprep.com
 
 ## Setup:
-Clone day trading assistant repository: `git clone https://github.com/Stas1407/day_trading_assistant.git`  \
-Cd into project directory: `cd day_trading_assistant`  \
-Clone surpriver repository: `git clone https://github.com/Stas1407/surpriver.git`  \
-Install requirements: `pip3 install -r requirements.txt`\
-If you have problems installing requirements I recommend to use conda virtual environment.\
-You also need to register at https://financialmodelingprep.com to receive a free api key which has to be placed in secrets.py file.  \
+1. Clone day trading assistant repository: `git clone https://github.com/Stas1407/day_trading_assistant.git`
+2. Cd into project directory: `cd day_trading_assistant`
+3. Clone surpriver repository: `git clone https://github.com/Stas1407/surpriver.git`
+4. Install requirements: `pip3 install -r requirements.txt`\
+If you have problems installing requirements I recommend to use conda virtual environment.
+5. You also need to register at https://financialmodelingprep.com to receive a free api key which has to be placed in secrets.py file.
 
 ## Usage:
 Run program with command: `python3 run.py`\
