@@ -304,6 +304,24 @@ class Stock(Process):
         except IndexError:
             return -1
 
+    def check_direction(self):
+        ticker = yfinance.Ticker(self.ticker)
+        flag = True
+
+        while flag:
+            try:
+                data = ticker.history(period='1d', interval="5m", progress=False)
+                flag = False
+            except json.decoder.JSONDecodeError:
+                print("[-] Failed to download current price")
+                flag = True
+
+        try:
+            self._logger_queue.put(["DEBUG", f" Stock {self.ticker} - Close: {data['Close'][-2]} Open: {data['Open'][-2]}"])
+            return data['Close'][-2] > data["Open"][-2]
+        except IndexError:
+            return -1, -1
+
     def get_nearest_support_resistance(self, current_price):
         # Find two nearest levels = support and resistance
         resistance = [10000000, 10000000]
@@ -358,7 +376,7 @@ class Stock(Process):
         self._logger_queue.put(["INFO", f"  Stock {self.ticker} - Nearest support: {support[1]}"])
 
         profit = (resistance[1] - current_price) / current_price
-        is_near_support = (current_price - support[1]) * 100 / (resistance[1] - support[1]) < 30
+        is_near_support = (current_price - support[1]) * 100 / (resistance[1] - support[1]) < 30 and self.check_direction()
 
         self._logger_queue.put(["DEBUG", f"  Stock {self.ticker} - Estimated profit: {round(profit, 2) * 100}"])
         self._logger_queue.put(["DEBUG", f"  Stock {self.ticker} - Is near support: {is_near_support}"])
@@ -367,7 +385,7 @@ class Stock(Process):
         self._logger_queue.put(["INFO", f"  Stock {self.ticker} - Bollinger down: {bollinger_down[-1]}"])
 
         if resistance[1] == 10000000:
-            resistance[1] = "Not found"
+            resistance[1] = -1
             profit = -1
         else:
             profit = round(profit, 2) * 100
@@ -416,9 +434,6 @@ class Stock(Process):
             self._logger_queue.put(["INFO", f"  Stock {self.ticker}: Near trend line"])
             if info['state'] == "worth attention":
                 info['strategy'] += " + trend line"
-            else:
-                info['state'] = "worth attention"
-                info['strategy'] = "near trend line"
 
         self._q.put(info)
 

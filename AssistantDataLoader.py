@@ -34,8 +34,8 @@ class AssistantDataLoader:
 
         # Urls
         self._stock_screener_url = "https://financialmodelingprep.com/api/v3/stock-screener?" \
-                                   "marketCapLowerThan=700000000&" \
-                                   "volumeMoreThan=100000&" \
+                                   "marketCapLowerThan=100000000&" \
+                                   "volumeMoreThan=1000000&" \
                                    "isActivelyTrading=true&" \
                                    "priceLowerThan=30&" \
                                    "exchange=nasdaq&" \
@@ -201,10 +201,13 @@ class AssistantDataLoader:
         return result
 
     def get_more_tickers(self):
-        most_active = stock_info.get_day_most_active()["Symbol"].values.tolist()
-        gainers = stock_info.get_day_gainers()["Symbol"].values.tolist()
+        try:
+            most_active = stock_info.get_day_most_active()["Symbol"].values.tolist()
+            gainers = stock_info.get_day_gainers()["Symbol"].values.tolist()
 
-        return list(set(most_active+gainers))
+            return list(set(most_active+gainers))
+        except TypeError:
+            return ["none"]
 
     def get_best_stocks(self):
         self._logger_queue.put(["INFO", " AssistantDataLoader: Running scraper"])
