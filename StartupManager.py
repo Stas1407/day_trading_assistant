@@ -5,6 +5,7 @@ from multiprocessing import Queue
 from Assistant import Assistant
 from CentralLogger import CentralLogger
 import json
+import os
 
 class StartupManager:
     def check_if_market_is_open(self):
@@ -20,8 +21,14 @@ class StartupManager:
             return False
 
     def save_preferences(self, preferences):
-        with open("data/preferences.json", "w") as f:
-            json.dump(preferences, f)
+        try:
+            with open("data/preferences.json", "w") as f:
+                json.dump(preferences, f)
+        except FileNotFoundError:
+            os.mkdir("data")
+
+            with open("data/preferences.json", "w") as f:
+                json.dump(preferences, f)
 
     def find_preferences(self):
         try:

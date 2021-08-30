@@ -53,6 +53,17 @@ class AssistantDataLoader:
         # Queues
         self._logger_queue = logger_queue
 
+    def check_api_key(self):
+        if API_KEY == "<Your financialmodelingprep.com API key>" or API_KEY == "":
+            print("[-] API key not found.")
+            print("Please go to financialmodelingprep.com and register (for free).")
+            print("After that you will receive an API key that you need to place in secrets.py file")
+
+            self._logger_queue.put(["ERROR", " AssistantDataLoader: API key not found. Exiting..."])
+            return False
+        else:
+            return True
+
     def create_surpriver_dictionary(self):
         if not CreateSurpriverDict(self._logger_queue, self._stocks_file_path, self._dictionary_file_path).run():
             self._run_surpriver = False
@@ -232,6 +243,9 @@ class AssistantDataLoader:
         return best_stocks[:self._web_stocks_limit]
 
     def get_tickers(self, tickers):
+        if not self.check_api_key():
+            return [], []
+
         if tickers is None:
             tickers = []
 

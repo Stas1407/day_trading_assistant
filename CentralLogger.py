@@ -1,5 +1,6 @@
 import multiprocessing
 import logging
+import os
 
 class CentralLogger(multiprocessing.Process):
     def __init__(self, queue):
@@ -7,7 +8,10 @@ class CentralLogger(multiprocessing.Process):
         self.queue = queue
         self.log = ""
 
-        open("logs/day_trading_assistant.log", "w").close()
+        try:
+            open("logs/day_trading_assistant.log", "w").close()
+        except FileNotFoundError:
+            os.mkdir("logs")
 
     def run(self):
         logging.basicConfig(filename="logs/day_trading_assistant.log", level=logging.DEBUG)

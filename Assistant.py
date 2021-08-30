@@ -30,6 +30,7 @@ class Assistant:
                                           max_surpriver_stocks_num=max_surpriver_stocks_num,
                                           run_surpriver=run_surpriver)
         self._tickers, self._surpriver_tickers = data_loader.get_tickers(tickers)
+
         self._max_processes = min([max_processes, len(self._tickers)])
         self._processes = {}
         self._interface = Process()
@@ -192,6 +193,12 @@ class Assistant:
         self.stop()
 
     def run(self):
+        if len(self._tickers) == 0:
+            print()
+            print("[-] Didn't receive any tickers. Exiting...")
+            self.stop()
+            return
+
         self._processes = self.start_monitoring(self._tickers)
         self._interface = self.start_console_interface()
         self.handle_input()
@@ -231,4 +238,3 @@ class Assistant:
 
         self._q.join_thread()
         self._logger_queue.join_thread()
-
